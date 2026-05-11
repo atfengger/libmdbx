@@ -1,4 +1,4 @@
-/* This file is part of the libmdbx amalgamated source code (v0.14.1-610-gcc920267 at 2026-05-09T13:03:22+03:00).
+/* This file is part of the libmdbx amalgamated source code (v0.14.1-614-ga9e2717d at 2026-05-11T12:08:45+03:00).
  *
  * libmdbx (aka MDBX) is an extremely fast, compact, powerful, embeddedable, transactional key-value storage engine with
  * open-source code. MDBX has a specific set of properties and capabilities, focused on creating unique lightweight
@@ -24,7 +24,7 @@
 
 #define xMDBX_ALLOY 1  /* alloyed build */
 
-#define MDBX_BUILD_SOURCERY 838ebeac6ead8985d5f928b4fbfa6b1e12fc1ebc65d0b97f96d3b3f9fe1f5db4_v0_14_1_610_gcc920267
+#define MDBX_BUILD_SOURCERY 84bdbacbdae1132dc0a72ddf4d29b329be7bcd731691c945b016c23dc0718d8b_v0_14_1_614_ga9e2717d
 
 #define LIBMDBX_INTERNALS
 #define MDBX_DEPRECATED
@@ -1303,9 +1303,9 @@ typedef struct osal_mmap {
  * https://android.googlesource.com/platform/bionic/+/master/docs/32-bit-abi.md */
 #define MDBX_HAVE_PWRITEV 0
 #if defined(_FILE_OFFSET_BITS) && _FILE_OFFSET_BITS != MDBX_WORDBITS
-#error "_FILE_OFFSET_BITS != MDBX_WORDBITS and __ANDROID_API__ < 24" (_FILE_OFFSET_BITS != MDBX_WORDBITS)
+#error "_FILE_OFFSET_BITS != MDBX_WORDBITS and __ANDROID_API__ < 24"
 #elif defined(__FILE_OFFSET_BITS) && __FILE_OFFSET_BITS != MDBX_WORDBITS
-#error "__FILE_OFFSET_BITS != MDBX_WORDBITS and __ANDROID_API__ < 24" (__FILE_OFFSET_BITS != MDBX_WORDBITS)
+#error "__FILE_OFFSET_BITS != MDBX_WORDBITS and __ANDROID_API__ < 24"
 #endif
 #else
 #define MDBX_HAVE_PWRITEV 1

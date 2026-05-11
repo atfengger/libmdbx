@@ -1,4 +1,4 @@
-/* This file is part of the libmdbx amalgamated source code (v0.14.1-595-ge91db90a at 2026-05-04T12:55:04+03:00).
+/* This file is part of the libmdbx amalgamated source code (v0.14.1-614-ga9e2717d at 2026-05-11T12:08:45+03:00).
  *
  * libmdbx (aka MDBX) is an extremely fast, compact, powerful, embeddedable, transactional key-value storage engine with
  * open-source code. MDBX has a specific set of properties and capabilities, focused on creating unique lightweight
@@ -348,10 +348,11 @@ int main(int argc, char *argv[]) {
     rc = MDBX_IS_ERROR(rc) ? rc : MDBX_SUCCESS;
   }
 
-  act = "preparing";
   MDBX_txn *txn = nullptr;
-  if (rc == MDBX_SUCCESS)
+  if (rc == MDBX_SUCCESS) {
+    act = "preparing";
     rc = mdbx_txn_begin(env, nullptr, MDBX_TXN_READWRITE, &txn);
+  }
 
   MDBX_envinfo info_env;
   memset(&info_env, 0, sizeof(info_env)); /* zap `uninitialized` warning */
