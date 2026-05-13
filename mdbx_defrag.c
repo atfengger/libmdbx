@@ -1,4 +1,4 @@
-/* This file is part of the libmdbx amalgamated source code (v0.14.1-614-ga9e2717d at 2026-05-11T12:08:45+03:00).
+/* This file is part of the libmdbx amalgamated source code (v0.14.1-619-g2f431447 at 2026-05-13T13:50:03+03:00).
  *
  * libmdbx (aka MDBX) is an extremely fast, compact, powerful, embeddedable, transactional key-value storage engine with
  * open-source code. MDBX has a specific set of properties and capabilities, focused on creating unique lightweight
@@ -129,8 +129,8 @@ static void defrag_report_progress(const MDBX_defrag_result_t *progress, unsigne
     for (unsigned i = 0; i < 3 || (i < dots / 8 && i < 64); ++i)
       putchar('.');
     if (is_console && dots) {
-      static char вертушка[] = "\\|/-\\|/-";
-      putchar(вертушка[(progress->spent_time_dot16 >> 13) % (ARRAY_LENGTH(вертушка) - 1)]);
+      static char twirl[] = "\\|/-\\|/-";
+      putchar(twirl[(progress->spent_time_dot16 >> 13) % (ARRAY_LENGTH(twirl) - 1)]);
       putchar('\b');
     }
     fflush(nullptr);

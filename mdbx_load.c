@@ -1,4 +1,4 @@
-/* This file is part of the libmdbx amalgamated source code (v0.14.1-614-ga9e2717d at 2026-05-11T12:08:45+03:00).
+/* This file is part of the libmdbx amalgamated source code (v0.14.1-619-g2f431447 at 2026-05-13T13:50:03+03:00).
  *
  * libmdbx (aka MDBX) is an extremely fast, compact, powerful, embeddedable, transactional key-value storage engine with
  * open-source code. MDBX has a specific set of properties and capabilities, focused on creating unique lightweight
@@ -130,7 +130,6 @@ static bool valbool(char *line, const char *item, bool *value) {
 
 static char *subname = nullptr;
 static int dbi_flags;
-static txnid_t txnid;
 static uint64_t sequence;
 static MDBX_canary canary;
 static MDBX_envinfo envinfo;
@@ -164,7 +163,6 @@ static int readhdr(void) {
     subname = nullptr;
   }
   dbi_flags = 0;
-  txnid = 0;
   sequence = 0;
 
   while (true) {
@@ -283,8 +281,7 @@ static int readhdr(void) {
         if (!quiet)
           fprintf(stderr, "%s: line %" PRIiSIZE ": ignore unsupported value 0x%" PRIx64 " for %s\n", prog, lineno, u64,
                   "txnid");
-      } else
-        txnid = u64;
+      }
       continue;
     }
 
