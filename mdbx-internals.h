@@ -1,4 +1,4 @@
-/* This file is part of the libmdbx amalgamated source code (v0.14.2-224-g8f756694 at 2026-06-21T11:47:59+03:00).
+/* This file is part of the libmdbx amalgamated source code (v0.14.2-239-gf02137ac at 2026-06-29T13:06:03+03:00).
  *
  * libmdbx (aka MDBX) is an extremely fast, compact, powerful, embeddedable, transactional key-value storage engine with
  * open-source code. MDBX has a specific set of properties and capabilities, focused on creating unique lightweight
@@ -24,7 +24,7 @@
 
 #define xMDBX_ALLOY 1  /* alloyed build */
 
-#define MDBX_BUILD_SOURCERY c776439654ef6624f85f2df081332327857ea393cd03e90158d7805ddf2f566d_v0_14_2_224_g8f756694
+#define MDBX_BUILD_SOURCERY 72110d2158eee3796b4ead65168bb13ebe394fe640f43d8eecdfa3dc63d1435c_v0_14_2_239_gf02137ac
 
 #define LIBMDBX_INTERNALS
 #define MDBX_DEPRECATED
@@ -76,8 +76,10 @@
 
 #if IS_WINDOWS
 #ifndef _WIN32_WINNT
-#define _WIN32_WINNT 0x0A00 /* Default Windows target: Windows 10. Keep single definition in this file. */
-#endif                      /* _WIN32_WINNT */
+#define _WIN32_WINNT 0x0A00 /* Windows 10 */
+#elif _WIN32_WINNT < 0x0500
+#error At least 'Windows 2000' API is required for libmdbx.
+#endif /* _WIN32_WINNT */
 
 #if !defined(_CRT_SECURE_NO_WARNINGS)
 #define _CRT_SECURE_NO_WARNINGS
@@ -119,7 +121,7 @@
 #if _MSC_FULL_VER < 190024234
 /* Actually libmdbx was not tested with compilers older than 19.00.24234 (Visual
  * Studio 2015 Update 3). But you could remove this #error and try to continue
- * at your own risk. In such case please don't rise up an issues related ONLY to
+ * at your own risk. In such case please don't raise issues related ONLY to
  * old compilers.
  *
  * NOTE:
@@ -185,6 +187,8 @@
 #if defined(__GNUC__) && __GNUC__ < 9
 #pragma GCC diagnostic ignored "-Wattributes"
 #endif /* GCC < 9 */
+
+#include "mdbx.h"
 
 /*----------------------------------------------------------------------------*/
 /* Microsoft compiler generates a lot of warning for self includes... */
@@ -282,7 +286,7 @@
 /*----------------------------------------------------------------------------*/
 /* pre-requirements */
 
-#if (-6 & 5) || CHAR_BIT != 8 || UINT_MAX < 0xffffffff || ULONG_MAX % 0xFFFF
+#if ((-6) & 5) != 0 || CHAR_BIT != 8 || UINT_MAX < 0xffffffff || ULONG_MAX % 0xFFFF
 #error "Sanity checking failed: Two's complement, reasonably sized integer types"
 #endif
 
@@ -293,7 +297,7 @@
 #if defined(__GNUC__) && !__GNUC_PREREQ(4, 2)
 /* Actually libmdbx was not tested with compilers older than GCC 4.2.
  * But you could ignore this warning at your own risk.
- * In such case please don't rise up an issues related ONLY to old compilers.
+ * In such case please don't raise issues related ONLY to old compilers.
  */
 #warning "libmdbx required GCC >= 4.2"
 #endif
@@ -301,7 +305,7 @@
 #if defined(__clang__) && !__CLANG_PREREQ(3, 8)
 /* Actually libmdbx was not tested with CLANG older than 3.8.
  * But you could ignore this warning at your own risk.
- * In such case please don't rise up an issues related ONLY to old compilers.
+ * In such case please don't raise issues related ONLY to old compilers.
  */
 #warning "libmdbx required CLANG >= 3.8"
 #endif
@@ -309,7 +313,7 @@
 #if defined(__GLIBC__) && !__GLIBC_PREREQ(2, 12)
 /* Actually libmdbx was not tested with something older than glibc 2.12.
  * But you could ignore this warning at your own risk.
- * In such case please don't rise up an issues related ONLY to old systems.
+ * In such case please don't raise issues related ONLY to old systems.
  */
 #warning "libmdbx was only tested with GLIBC >= 2.12."
 #endif
@@ -347,7 +351,7 @@
 #endif
 #endif /* __extern_C */
 
-#if !defined(nullptr) && !defined(__cplusplus) || (__cplusplus < 201103L && !defined(_MSC_VER))
+#if !defined(nullptr) && (!defined(__cplusplus) || (__cplusplus < 201103L && !defined(_MSC_VER)))
 #define nullptr NULL
 #endif
 
@@ -377,7 +381,7 @@
 #endif
 #else
 #include <malloc.h>
-#if !(defined(__sun) || defined(__SVR4) || defined(__svr4__) || defined(_WIN32) || defined(_WIN64))
+#if !(defined(__sun) || defined(__SVR4) || defined(__svr4__) || IS_WINDOWS)
 #include <mntent.h>
 #endif /* !Solaris */
 #endif /* !xBSD */
@@ -421,13 +425,8 @@
 __extern_C key_t ftok(const char *, int);
 #endif /* SunOS/Solaris */
 
-#if defined(_WIN32) || defined(_WIN64) /*-------------------------------------*/
+#if IS_WINDOWS /*-------------------------------------*/
 
-#ifndef _WIN32_WINNT
-#define _WIN32_WINNT 0x0601 /* Windows 7 */
-#elif _WIN32_WINNT < 0x0500
-#error At least 'Windows 2000' API is required for libmdbx.
-#endif /* _WIN32_WINNT */
 #ifndef WIN32_LEAN_AND_MEAN
 #define WIN32_LEAN_AND_MEAN
 #endif /* WIN32_LEAN_AND_MEAN */
@@ -446,7 +445,7 @@ __extern_C key_t ftok(const char *, int);
 #include <io.h>
 #include <tlhelp32.h>
 
-#if defined(__CODEGEARC__) && defined(_WIN32) && !defined(YieldProcessor)
+#if defined(__CODEGEARC__) && IS_WINDOWS && !defined(YieldProcessor)
 /* Embarcadero intrin.h does not define YieldProcessor; provide it via inline asm */
 #define YieldProcessor() __asm__ __volatile__("pause")
 #endif /* __CODEGEARC__ */
@@ -549,7 +548,7 @@ __extern_C key_t ftok(const char *, int);
     defined(_M_ARM) || defined(_M_ARM64) || defined(__e2k__) || defined(__elbrus_4c__) || defined(__elbrus_8c__) ||    \
     defined(__bfin__) || defined(__BFIN__) || defined(__ia64__) || defined(_IA64) || defined(__IA64__) ||              \
     defined(__ia64) || defined(_M_IA64) || defined(__itanium__) || defined(__ia32__) || defined(__CYGWIN__) ||         \
-    defined(_WIN64) || defined(_WIN32) || defined(__TOS_WIN__) || defined(__WINDOWS__)
+    IS_WINDOWS || defined(__TOS_WIN__) || defined(__WINDOWS__)
 #define __BYTE_ORDER__ __ORDER_LITTLE_ENDIAN__
 
 #elif defined(__BIG_ENDIAN__) || (defined(_BIG_ENDIAN) && !defined(_LITTLE_ENDIAN)) || defined(__ARMEB__) ||           \
@@ -981,6 +980,9 @@ template <typename T, size_t N> char (&__ArraySizeHelper(T (&array)[N]))[N];
 
 #define MDBX_TETRAD(a, b, c, d) ((uint32_t)(a) << 24 | (uint32_t)(b) << 16 | (uint32_t)(c) << 8 | (d))
 
+#ifndef MDBX_STRINGIFY
+#error "MDBX_STRINGIFY expected to be provided/defined here."
+#endif
 #define FIXME "FIXME: " __FILE__ ", " MDBX_STRINGIFY(__LINE__)
 
 #ifndef STATIC_ASSERT_MSG
@@ -1080,8 +1082,6 @@ template <typename T, size_t N> char (&__ArraySizeHelper(T (&array)[N]))[N];
 /* Non-amalgamated build */
 #define MDBX_INTERNAL
 #endif /* xMDBX_ALLOY */
-
-#include "mdbx.h"
 
 /*----------------------------------------------------------------------------*/
 /* Basic constants and types */

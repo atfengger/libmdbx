@@ -1,4 +1,4 @@
-/* This file is part of the libmdbx amalgamated source code (v0.14.2-224-g8f756694 at 2026-06-21T11:47:59+03:00).
+/* This file is part of the libmdbx amalgamated source code (v0.14.2-239-gf02137ac at 2026-06-29T13:06:03+03:00).
  *
  * libmdbx (aka MDBX) is an extremely fast, compact, powerful, embeddedable, transactional key-value storage engine with
  * open-source code. MDBX has a specific set of properties and capabilities, focused on creating unique lightweight
@@ -6023,7 +6023,7 @@ int mdbx_cursor_get(MDBX_cursor *mc, MDBX_val *key, MDBX_val *data, MDBX_cursor_
   return LOG_IFERR(cursor_ops(mc, key, data, op));
 }
 
-__hot static int scan_confinue(MDBX_cursor *mc, MDBX_predicate_func predicate, void *context, void *arg, MDBX_val *key,
+__hot static int scan_continue(MDBX_cursor *mc, MDBX_predicate_func predicate, void *context, void *arg, MDBX_val *key,
                                MDBX_val *value, MDBX_cursor_op turn_op) {
   int rc;
   switch (turn_op) {
@@ -6105,7 +6105,7 @@ int mdbx_cursor_scan(MDBX_cursor *mc, MDBX_predicate_func predicate, void *conte
   int rc = mdbx_cursor_get(mc, &key, &value, start_op);
   if (unlikely(rc != MDBX_SUCCESS))
     return LOG_IFERR(rc);
-  return LOG_IFERR(scan_confinue(mc, predicate, context, arg, &key, &value, turn_op));
+  return LOG_IFERR(scan_continue(mc, predicate, context, arg, &key, &value, turn_op));
 }
 
 int mdbx_cursor_scan_from(MDBX_cursor *mc, MDBX_predicate_func predicate, void *context, MDBX_cursor_op from_op,
@@ -6136,7 +6136,7 @@ int mdbx_cursor_scan_from(MDBX_cursor *mc, MDBX_predicate_func predicate, void *
     if (unlikely(rc != MDBX_SUCCESS))
       return LOG_IFERR(rc);
   }
-  return LOG_IFERR(scan_confinue(mc, predicate, context, arg, key, value, turn_op));
+  return LOG_IFERR(scan_continue(mc, predicate, context, arg, key, value, turn_op));
 }
 
 int mdbx_cursor_get_batch(MDBX_cursor *mc, size_t *count, MDBX_val *pairs, size_t limit, MDBX_cursor_op op) {
@@ -27120,9 +27120,10 @@ __cold const char *mdbx_dump_val(const MDBX_val *val, char *const buf, const siz
   }
 
   bool is_ascii = true;
+  enum { ASCII_PRINTABLE_MIN = 0x20, ASCII_PRINTABLE_MAX = 0x7E };
   const uint8_t *const data = val->iov_base;
   for (size_t i = 0; i < val->iov_len; i++)
-    if (data[i] < ' ' || data[i] > '~') {
+    if (data[i] < ASCII_PRINTABLE_MIN || data[i] > ASCII_PRINTABLE_MAX) {
       is_ascii = false;
       break;
     }
@@ -27131,16 +27132,23 @@ __cold const char *mdbx_dump_val(const MDBX_val *val, char *const buf, const siz
     /* Outer (int) cast: both branches of the ternary already produce int, but Embarcadero
      * infers the expression type as long; the cast is a no-op on any conforming compiler. */
     int len = snprintf(buf, bufsize, "%.*s", (int)((val->iov_len > INT_MAX) ? INT_MAX : (int)val->iov_len), data);
-    ASSERT(len > 0 && (size_t)len < bufsize);
-    (void)len;
+    if (unlikely(len < 0))
+      buf[0] = '\0';
+    else if (unlikely((size_t)len >= bufsize))
+      buf[bufsize - 1] = '\0';
+    else
+      ASSERT(len > 0);
   } else {
-    static const char hex[16] = {'0', '1', '2', '3', '4', '5', '6', '7', '8', '9', 'a', 'b', 'c', 'd', 'e', 'f'};
+    const char alpha_offset = 'a' - '9' - 1;
     char *const detent = buf + bufsize - 2;
     char *ptr = buf;
     *ptr++ = '<';
     for (size_t i = 0; i < val->iov_len && ptr < detent; i++) {
-      *ptr++ = hex[data[i] >> 4];
-      *ptr++ = hex[data[i] & 15];
+      const int8_t hi = data[i] >> 4;
+      const int8_t lo = data[i] & 15;
+      ptr[0] = (char)('0' + hi + (((9 - hi) >> 7) & alpha_offset));
+      ptr[1] = (char)('0' + lo + (((9 - lo) >> 7) & alpha_offset));
+      ptr += 2;
     }
     if (ptr < detent)
       *ptr++ = '>';
@@ -27182,13 +27190,18 @@ __cold static int setup_debug(MDBX_log_level_t level, MDBX_debug_flags_t flags, 
   }
 
   ENSURE(osal_fastmutex_release(&globals.debug_lock) == 0);
+  ASSERT(rc >= 0);
   return rc;
 }
 
 __cold int mdbx_setup_debug_nofmt(MDBX_log_level_t level, MDBX_debug_flags_t flags, MDBX_debug_func_nofmt logger,
                                   char *buffer, size_t buffer_size) {
   union logger_union thunk;
-  thunk.nofmt = (logger && buffer && buffer_size) ? logger : MDBX_LOGGER_NOFMT_DONTCHANGE;
+  thunk.nofmt = logger ? logger : MDBX_LOGGER_NOFMT_DONTCHANGE;
+  const bool logger_changed = (thunk.nofmt != MDBX_LOGGER_NOFMT_DONTCHANGE);
+  const bool buffer_configured = (buffer != nullptr && buffer_size != 0);
+  if (unlikely(logger_changed != buffer_configured))
+    return -1;
   return setup_debug(level, flags, thunk, buffer, buffer_size);
 }
 
@@ -27345,12 +27358,14 @@ __cold __noinline void panic_at_fmt(const struct MDBX_panic_point *const at, con
   char *message = nullptr;
   const int num = osal_vasprintf(&message, at->msg, ap);
   va_end(ap);
-  const char *const const_message = unlikely(num < 1 || !message) ? "<vasprintf() failed>" : message;
-  panic_internal(const_message, at->function, at->line, obj);
+  const char *const final_message = unlikely(num < 1 || !message) ? "<vasprintf() failed>" : message;
+  panic_internal(final_message, at->function, at->line, obj);
   __unreachable();
 }
 
-__cold void mdbx_assert_fail(const char *msg, const char *func, unsigned line) { panic_internal(msg, func, line, nullptr); }
+__cold void mdbx_assert_fail(const char *msg, const char *func, unsigned line) {
+  panic_internal(msg, func, line, nullptr);
+}
 
 #endif /* MDBX_CHECKING >= 0 */
 
@@ -38586,7 +38601,7 @@ __hot __noinline int tree_deepen_edge(MDBX_cursor *mc, int flags) {
 /* ---------------------------------------------------------------------------------------------------- */
 
 #if defined(__GNUC__) && !(defined(__e2k__) || defined(__elbrus__))
-#define CLEAR_VALUE_PROPAGATION(VAR) __asm__ __volatile__("" : "+r"(cmp))
+#define CLEAR_VALUE_PROPAGATION(VAR) __asm__ __volatile__("" : "+r"(VAR))
 #else
 #define CLEAR_VALUE_PROPAGATION(VAR)                                                                                   \
   do {                                                                                                                 \
@@ -41880,10 +41895,10 @@ __dll_export
         0,
         14,
         2,
-        224,
+        239,
         "", /* pre-release suffix of SemVer
-                                        0.14.2.224 */
-        {"2026-06-21T11:47:59+03:00", "f9bce6f9699a701f6d98d0a4c4e5304877a0c644", "8f7566949369ece6fc0ce3c4516ee49cf1ccc0ef", "v0.14.2-224-g8f756694"},
+                                        0.14.2.239 */
+        {"2026-06-29T13:06:03+03:00", "46de10878837ece16e21df688c42184e67d02e58", "f02137acbc04acd95f1acc9b20a0a3b8e4f71867", "v0.14.2-239-gf02137ac"},
         sourcery};
 
 __dll_export
