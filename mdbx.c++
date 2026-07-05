@@ -1,4 +1,4 @@
-/* This file is part of the libmdbx amalgamated source code (v0.14.2-251-g06d0f3ad at 2026-07-04T12:31:19+03:00).
+/* This file is part of the libmdbx amalgamated source code (v0.14.2-265-g2b00a10f at 2026-07-06T02:57:15+03:00).
  *
  * libmdbx (aka MDBX) is an extremely fast, compact, powerful, embeddedable, transactional key-value storage engine with
  * open-source code. MDBX has a specific set of properties and capabilities, focused on creating unique lightweight
@@ -1487,7 +1487,7 @@ bool slice::is_printable(bool disable_utf8) const noexcept {
       src += 2;
       continue;
     case 3:
-      if (MDBX_UNLIKELY(src + 3 >= end))
+      if (MDBX_UNLIKELY(src + 2 >= end))
         MDBX_CXX20_UNLIKELY return false;
       if (MDBX_UNLIKELY(src[1] < second_from || src[1] > second_to))
         MDBX_CXX20_UNLIKELY return false;
@@ -1496,7 +1496,7 @@ bool slice::is_printable(bool disable_utf8) const noexcept {
       src += 3;
       continue;
     case 4:
-      if (MDBX_UNLIKELY(src + 4 >= end))
+      if (MDBX_UNLIKELY(src + 3 >= end))
         MDBX_CXX20_UNLIKELY return false;
       if (MDBX_UNLIKELY(src[1] < second_from || src[1] > second_to))
         MDBX_CXX20_UNLIKELY return false;
@@ -1579,7 +1579,7 @@ MDBX_I128_TYPE slice::as_int128_adapt() const {
 int64_t slice::as_int64_adapt() const {
   static_assert(sizeof(int64_t) == 8, "WTF?");
   if (size() == 8) {
-    uint64_t r;
+    int64_t r;
     memcpy(&r, data(), sizeof(r));
     return r;
   } else
@@ -1924,12 +1924,11 @@ char *from_base58::write_bytes(char *__restrict const dest, size_t dest_size) co
   auto ptr = dest;
   auto begin = source.byte_ptr();
   auto const end = source.end_byte_ptr();
-  while (begin < end && *begin <= '1') {
+  while (begin < end && *begin <= /* '0' and other chars less are invalid here */ '1') {
     if (MDBX_LIKELY(*begin == '1'))
       MDBX_CXX20_LIKELY *ptr++ = 0;
     else if (MDBX_UNLIKELY(!ignore_spaces || !isspace(*begin)))
-      MDBX_CXX20_UNLIKELY
-    throw std::domain_error("mdbx::from_base58:: invalid base58 string");
+      MDBX_CXX20_UNLIKELY throw std::domain_error("mdbx::from_base58:: invalid base58 string");
     ++begin;
   }
 
@@ -2080,7 +2079,7 @@ char *from_base64::write_bytes(char *__restrict const dest, size_t dest_size) co
       continue;
     }
 
-    if (MDBX_UNLIKELY(left < 3))
+    if (MDBX_UNLIKELY(left < 4))
       MDBX_CXX20_UNLIKELY {
       bailout:
         throw std::domain_error("mdbx::from_base64:: invalid base64 string");
@@ -2120,8 +2119,8 @@ bool from_base64::is_erroneous() const noexcept {
       continue;
     }
 
-    if (MDBX_UNLIKELY(left < 3))
-      MDBX_CXX20_UNLIKELY return false;
+    if (MDBX_UNLIKELY(left < 4))
+      MDBX_CXX20_UNLIKELY return true;
     const signed char a = b64_map[src[0]], b = b64_map[src[1]], c = b64_map[src[2]], d = b64_map[src[3]];
     if (MDBX_UNLIKELY((a | b | c | d) < 0))
       MDBX_CXX20_UNLIKELY {
@@ -2338,6 +2337,7 @@ env_managed &env_managed::operator=(env_managed &&other) noexcept {
     if (MDBX_UNLIKELY(handle_))
       MDBX_CXX20_UNLIKELY {
         assert(handle_ != other.handle_);
+        /* coverity[UNCAUGHT_EXCEPT] */
         close();
       }
     inherited::operator=(std::move(other));
@@ -2456,6 +2456,7 @@ cursor_managed &cursor_managed::operator=(cursor_managed &&other) noexcept {
     if (MDBX_UNLIKELY(handle_))
       MDBX_CXX20_UNLIKELY {
         assert(handle_ != other.handle_);
+        /* coverity[UNCAUGHT_EXCEPT] */
         close();
       }
     inherited::operator=(std::move(other));
@@ -2487,6 +2488,7 @@ txn_managed &txn_managed::operator=(txn_managed &&other) noexcept {
     if (MDBX_UNLIKELY(handle_))
       MDBX_CXX20_UNLIKELY {
         assert(handle_ != other.handle_);
+        /* coverity[UNCAUGHT_EXCEPT] */
         abort();
       }
     inherited::operator=(std::move(other));

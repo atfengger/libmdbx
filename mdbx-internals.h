@@ -1,4 +1,4 @@
-/* This file is part of the libmdbx amalgamated source code (v0.14.2-251-g06d0f3ad at 2026-07-04T12:31:19+03:00).
+/* This file is part of the libmdbx amalgamated source code (v0.14.2-265-g2b00a10f at 2026-07-06T02:57:15+03:00).
  *
  * libmdbx (aka MDBX) is an extremely fast, compact, powerful, embeddedable, transactional key-value storage engine with
  * open-source code. MDBX has a specific set of properties and capabilities, focused on creating unique lightweight
@@ -24,7 +24,7 @@
 
 #define xMDBX_ALLOY 1  /* alloyed build */
 
-#define MDBX_BUILD_SOURCERY 3acf949006eff873a5f8c0550e280f0b263af6da4efe865cb31276d7cb3e9edb_v0_14_2_251_g06d0f3ad
+#define MDBX_BUILD_SOURCERY fb47cef54ec87ce73376ef617868db1f0f785981469cded70e42f7ef1f1b70ee_v0_14_2_265_g2b00a10f
 
 #define LIBMDBX_INTERNALS
 #define MDBX_DEPRECATED
@@ -986,12 +986,11 @@ template <typename T, size_t N> char (&__ArraySizeHelper(T (&array)[N]))[N];
 
 #define MDBX_TETRAD(a, b, c, d) ((uint32_t)(a) << 24 | (uint32_t)(b) << 16 | (uint32_t)(c) << 8 | (d))
 
-/* Build/integration contract: MDBX_STRINGIFY must be defined by prior project
- * headers or compile-time configuration before this point. */
 #ifndef MDBX_STRINGIFY
-#error "MDBX_STRINGIFY must be defined by prior headers or build configuration before including this header."
-#endif
+#error "MDBX_STRINGIFY expected to be provided/defined before here."
+#else
 #define FIXME "FIXME: " __FILE__ ", " MDBX_STRINGIFY(__LINE__)
+#endif
 
 #ifndef STATIC_ASSERT_MSG
 #if defined(static_assert)

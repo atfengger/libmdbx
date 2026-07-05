@@ -1,4 +1,4 @@
-/* This file is part of the libmdbx amalgamated source code (v0.14.2-251-g06d0f3ad at 2026-07-04T12:31:19+03:00).
+/* This file is part of the libmdbx amalgamated source code (v0.14.2-265-g2b00a10f at 2026-07-06T02:57:15+03:00).
  *
  * libmdbx (aka MDBX) is an extremely fast, compact, powerful, embeddedable, transactional key-value storage engine with
  * open-source code. MDBX has a specific set of properties and capabilities, focused on creating unique lightweight
@@ -1439,17 +1439,17 @@ struct gc_reclaiming_obstacle;
 MDBX_INTERNAL bool mvcc_kick_laggards(MDBX_txn *txn, const txnid_t laggard,
                                       struct gc_reclaiming_obstacle *optional_obstacle);
 
-typedef struct rw_oldest_readed_shapshot_into {
+typedef struct rw_oldest_read_snapshot_into {
   txnid_t oldest_txnid, steady_txnid;
 } orsi_rw_t;
-MDBX_INTERNAL orsi_rw_t mvcc_shapshot_oldest_rw(const MDBX_txn *const txn);
+MDBX_INTERNAL orsi_rw_t mvcc_snapshot_oldest_rw(const MDBX_txn *const txn);
 
-typedef struct ro_oldest_readed_shapshot_into {
+typedef struct ro_oldest_read_snapshot_into {
   txnid_t oldest_txnid, thisprocess_oldest_txnid;
   txnid_t recent_txnid;
   size_t nreaders;
 } orsi_ro_t;
-MDBX_INTERNAL orsi_ro_t mvcc_shapshot_oldest_ro(const MDBX_txn *const txn, const bool need_thisprocess_oldest);
+MDBX_INTERNAL orsi_ro_t mvcc_snapshot_oldest_ro(const MDBX_txn *const txn, const bool need_thisprocess_oldest);
 
 /* dxb.c */
 MDBX_INTERNAL int dxb_setup(MDBX_env *env, const int lck_rc, const mdbx_mode_t mode_bits);
@@ -1457,7 +1457,7 @@ MDBX_INTERNAL int dxb_pwrite(MDBX_env *env, const void *buf, uint64_t offset);
 MDBX_INTERNAL int dxb_pread(MDBX_env *env, void *buf, uint64_t offset);
 MDBX_INTERNAL int __must_check_result dxb_read_header(MDBX_env *env, meta_t *meta, const int lck_exclusive,
                                                       const mdbx_mode_t mode_bits);
-enum resize_mode { implicit_grow, impilict_shrink, explicit_resize };
+enum resize_mode { implicit_grow, implicit_shrink, explicit_resize };
 MDBX_INTERNAL int __must_check_result dxb_resize(MDBX_env *const env, const pgno_t used_pgno, const pgno_t size_pgno,
                                                  pgno_t limit_pgno, const enum resize_mode mode);
 MDBX_INTERNAL int dxb_set_readahead(const MDBX_env *env, const pgno_t edge, const bool enable, const bool force_whole);
@@ -1560,7 +1560,7 @@ static inline sfr_t tree_search_foliage(MDBX_cursor *mc, const MDBX_val *key) {
 MDBX_INTERNAL int tree_cutoff_twig(MDBX_cursor *mc, const pgno_t pgno, size_t deep, txnid_t parent_txnid,
                                    const bool whole_tree);
 #endif /* MDBX_ENABLE_BUNCHES_REMOVAL */
-MDBX_INTERNAL int tree_curoff_range(MDBX_cursor *begin, MDBX_cursor *end, bool end_including);
+MDBX_INTERNAL int tree_cutoff_range(MDBX_cursor *begin, MDBX_cursor *end, bool end_including);
 MDBX_INTERNAL int tree_drop(MDBX_cursor *mc);
 MDBX_INTERNAL int __must_check_result tree_rebalance(MDBX_cursor *mc);
 MDBX_INTERNAL int __must_check_result tree_propagate_key(MDBX_cursor *mc, const MDBX_val *key);
@@ -5644,12 +5644,11 @@ int mdbx_cursor_bind(MDBX_txn *txn, MDBX_cursor *mc, MDBX_dbi dbi) {
   if (unlikely(rc != MDBX_SUCCESS))
     return LOG_IFERR(rc);
 
-  if (unlikely(mc->backup)) /* Cursor from parent transaction */
-    LOG_IFERR(MDBX_EINVAL);
-
   if (mc->signature == cur_signature_live) {
     if (mc->txn == txn && cursor_dbi(mc) == dbi)
       return MDBX_SUCCESS;
+    if (unlikely(mc->backup)) /* Cursor from parent transaction */
+      return LOG_IFERR(MDBX_EINVAL);
     rc = mdbx_cursor_unbind(mc);
     if (unlikely(rc != MDBX_SUCCESS))
       return (rc == MDBX_BAD_TXN) ? MDBX_EINVAL : rc;
@@ -5865,8 +5864,8 @@ int mdbx_cursor_compare(const MDBX_cursor *l, const MDBX_cursor *r, bool ignore_
 
   if (unlikely(cursor_check_pure(l) != MDBX_SUCCESS))
     return (cursor_check_pure(r) == MDBX_SUCCESS) ? -incomparable * 8 : 0;
-  if (unlikely(cursor_check_pure(r) != MDBX_SUCCESS))
-    return (cursor_check_pure(l) == MDBX_SUCCESS) ? incomparable * 8 : 0;
+  else if (unlikely(cursor_check_pure(r) != MDBX_SUCCESS))
+    return incomparable * 8;
 
   if (unlikely(l->clc != r->clc)) {
     if (l->txn->env != r->txn->env)
@@ -6319,7 +6318,7 @@ int mdbx_cursor_bunch_delete(MDBX_cursor *mc, MDBX_bunch_action_t action, uint64
   if (unlikely(rc != MDBX_SUCCESS))
     return LOG_IFERR(rc);
 
-  if (unlikely(action < MDBX_DELETE_CURRENT_VALUE || action > MDBX_DELETE_WHOLE))
+  if (unlikely((unsigned)action > MDBX_DELETE_WHOLE))
     return LOG_IFERR(MDBX_EINVAL);
 
 #if MDBX_ENABLE_BUNCHES_REMOVAL
@@ -6353,7 +6352,7 @@ int mdbx_cursor_bunch_delete(MDBX_cursor *mc, MDBX_bunch_action_t action, uint64
         break;
       }
     }
-    rc = tree_curoff_range(axe, mc, action == MDBX_DELETE_CURRENT_MULTIVAL_BEFORE_INCLUDING);
+    rc = tree_cutoff_range(axe, mc, action == MDBX_DELETE_CURRENT_MULTIVAL_BEFORE_INCLUDING);
 #else
   case MDBX_DELETE_CURRENT_MULTIVAL_BEFORE_INCLUDING:
     rc = cursor_del(mc, 0);
@@ -6387,7 +6386,7 @@ int mdbx_cursor_bunch_delete(MDBX_cursor *mc, MDBX_bunch_action_t action, uint64
         break;
       }
     }
-    rc = tree_curoff_range(axe, mc, true);
+    rc = tree_cutoff_range(axe, mc, true);
 #else
   case MDBX_DELETE_CURRENT_MULTIVAL_AFTER_INCLUDING:
     rc = cursor_del(mc, 0);
@@ -6415,7 +6414,7 @@ int mdbx_cursor_bunch_delete(MDBX_cursor *mc, MDBX_bunch_action_t action, uint64
       rc = (rc == MDBX_NOTFOUND) ? MDBX_SUCCESS : rc;
       break;
     }
-    rc = tree_curoff_range(axe, mc, action == MDBX_DELETE_BEFORE_INCLUDING);
+    rc = tree_cutoff_range(axe, mc, action == MDBX_DELETE_BEFORE_INCLUDING);
 #else
   case MDBX_DELETE_BEFORE_INCLUDING:
     rc = cursor_del(mc, 0);
@@ -6447,7 +6446,7 @@ int mdbx_cursor_bunch_delete(MDBX_cursor *mc, MDBX_bunch_action_t action, uint64
       rc = (rc == MDBX_NOTFOUND) ? MDBX_SUCCESS : rc;
       break;
     }
-    rc = tree_curoff_range(axe, mc, true);
+    rc = tree_cutoff_range(axe, mc, true);
 #else
   case MDBX_DELETE_AFTER_INCLUDING:
     rc = cursor_del(mc, 0);
@@ -6469,6 +6468,7 @@ int mdbx_cursor_bunch_delete(MDBX_cursor *mc, MDBX_bunch_action_t action, uint64
 
 #if MDBX_ENABLE_BUNCHES_REMOVAL
   if (axe)
+    /* No another cursors could be inserted after the axe, so we can just update the head. */
     axe->txn->cursors[cursor_dbi(axe)] = axe->next;
 #endif /* MDBX_ENABLE_BUNCHES_REMOVAL */
   if (number_of_affected)
@@ -6523,10 +6523,12 @@ int mdbx_cursor_delete_range(MDBX_cursor *begin, MDBX_cursor *end, bool end_incl
   }
 
   const uint64_t save_items = begin->tree->items;
-  rc = tree_curoff_range(begin, end, !!end_including);
+  rc = tree_cutoff_range(begin, end, !!end_including);
   if (number_of_affected)
     *number_of_affected = save_items - begin->tree->items;
 
+  /* No other cursors could have been inserted after couple.outer, so we can just check the head to determine if
+   * couple.outer has been added, and then just update it. */
   if (begin->txn->cursors[cursor_dbi(begin)] == &couple.outer)
     /* coverity[UNINIT] */
     couple.outer.txn->cursors[cursor_dbi(begin)] = couple.outer.next;
@@ -6657,7 +6659,7 @@ int mdbx_cursor_distance(const MDBX_cursor *begin, const MDBX_cursor *end, intpt
       *distance = (cmp > 0) ? 1 : -1;
       return MDBX_SUCCESS;
     }
-    if (cmp == 0 && inner_pointed(end)) {
+    if (inner_pointed(end)) {
       ASSERT(inner_pointed(begin));
       cmp = cursor_cmp(&begin->subcur->cursor, &end->subcur->cursor);
       if (cmp == 0) {
@@ -8574,8 +8576,8 @@ __cold int mdbx_gc_info(MDBX_txn *txn, MDBX_gc_info_t *info, size_t bytes, MDBX_
   info->pages_gc += gc->leaf_pages;
   info->pages_gc += gc->large_pages;
 
-  const txnid_t reclaiming_detent = (txn->flags & txn_ro_flat) ? mvcc_shapshot_oldest_ro(txn, false).oldest_txnid
-                                                               : mvcc_shapshot_oldest_rw(txn).oldest_txnid;
+  const txnid_t reclaiming_detent = (txn->flags & txn_ro_flat) ? mvcc_snapshot_oldest_ro(txn, false).oldest_txnid
+                                                               : mvcc_snapshot_oldest_rw(txn).oldest_txnid;
   if ((txn->flags & txn_ro_flat) == 0) {
     const size_t workset = txn->wr.loose_count + pnl_size(txn->wr.repnl);
     info->gc_reclaimable.pages += workset;
@@ -19964,7 +19966,7 @@ __cold int dxb_resize(MDBX_env *const env, const pgno_t allocated_pgno, const pg
   eASSERT0(env, bytes2pgno(env, limit_bytes) >= limit_pgno);
 
   unsigned mresize_flags = env->flags & (MDBX_RDONLY | MDBX_WRITEMAP | MDBX_UTTERLY_NOSYNC);
-  if (mode >= impilict_shrink)
+  if (mode >= implicit_shrink)
     mresize_flags |= txn_shrink_allowed;
 
   if (limit_bytes == env->dxb_mmap.limit && size_bytes == env->dxb_mmap.current && size_bytes == env->dxb_mmap.filesize)
@@ -21119,7 +21121,7 @@ int dxb_sync_locked(MDBX_env *env, unsigned flags, meta_t *const pending, troika
   if (unlikely(shrink)) {
     VERBOSE("shrink to %" PRIaPGNO " pages (-%" PRIaPGNO ")", pending->geometry.now, shrink);
     rc = dxb_resize(env, pending->geometry.first_unallocated, pending->geometry.now, pending->geometry.upper,
-                    impilict_shrink);
+                    implicit_shrink);
     if (rc != MDBX_SUCCESS && rc != MDBX_EPERM)
       goto fail;
     eASSERT1(env, coherency_check_meta(env, target, true));
@@ -22589,9 +22591,9 @@ bailout:
   return ret;
 }
 
-static txnid_t shapshot_oldest_force_rescan(MDBX_txn *const txn) {
+static txnid_t snapshot_oldest_force_rescan(MDBX_txn *const txn) {
   atomic_store32(&txn->env->lck->rdt_refresh_flag, true, mo_AcquireRelease);
-  return mvcc_shapshot_oldest_rw(txn).oldest_txnid;
+  return mvcc_snapshot_oldest_rw(txn).oldest_txnid;
 }
 
 const char *gc_check_keylen(size_t const key_len) {
@@ -22850,7 +22852,7 @@ next_gc:
     goto fail;
 
   if (LOG_ENABLED(MDBX_LOG_EXTRA)) {
-    DEBUG_EXTRA("readed GC-pnl txn %" PRIaTXN " root %" PRIaPGNO " len %zu, PNL", id, txn->dbs[FREE_DBI].root, gc_len);
+    DEBUG_EXTRA("read GC-pnl txn %" PRIaTXN " root %" PRIaPGNO " len %zu, PNL", id, txn->dbs[FREE_DBI].root, gc_len);
     for (size_t i = gc_len; i; i--)
       DEBUG_EXTRA_PRINT(" %" PRIaPGNO, gc_pnl[i]);
     DEBUG_EXTRA_PRINT(", first_unallocated %u\n", txn->geo.first_unallocated);
@@ -23072,7 +23074,7 @@ no_gc:
 
   const txnid_t oldest_cached = env->lck->cached_oldest_txnid.weak;
   const meta_ptr_t syncpoint = meta_prefer_steady(env, &txn->wr.troika);
-  const txnid_t oldest_rescan = shapshot_oldest_force_rescan(txn);
+  const txnid_t oldest_rescan = snapshot_oldest_force_rescan(txn);
   NOTICE("try growth datafile to %zu pages (+%zu), pending-txnid %" PRIu64 ", gc-reclaiming detent %" PRIu64
          " (syncpoint %s.%" PRIu64 ", oldest-reader cached %" PRIu64 " rescan %" PRIu64 " %+zi)",
          aligned, aligned - txn->geo.end_pgno, txn->txnid, env->gc.detent, syncpoint.is_steady ? "steady" : "weak",
@@ -28126,7 +28128,7 @@ bsr_t mvcc_bind_slot(MDBX_env *env) {
 
 #define NOTHING_CHANGED_SIGNATURE MDBX_TETRAD('N', 'o', 'n', 'e')
 
-MDBX_MAYBE_UNUSED __hot orsi_ro_t mvcc_shapshot_oldest_ro(const MDBX_txn *const txn,
+MDBX_MAYBE_UNUSED __hot orsi_ro_t mvcc_snapshot_oldest_ro(const MDBX_txn *const txn,
                                                           const bool need_thisprocess_oldest) {
   const uint32_t nothing_changed_signature = NOTHING_CHANGED_SIGNATURE;
   cASSERT0(txn, (txn->flags & txn_ro_flat) != 0);
@@ -28157,7 +28159,7 @@ MDBX_MAYBE_UNUSED __hot orsi_ro_t mvcc_shapshot_oldest_ro(const MDBX_txn *const 
   return result;
 }
 
-__hot orsi_rw_t mvcc_shapshot_oldest_rw(const MDBX_txn *const txn) {
+__hot orsi_rw_t mvcc_snapshot_oldest_rw(const MDBX_txn *const txn) {
   const uint32_t nothing_changed_signature = NOTHING_CHANGED_SIGNATURE;
   cASSERT0(txn, (txn->flags & txn_ro_flat) == 0);
   lck_t *const lck = txn->env->lck;
@@ -28418,7 +28420,7 @@ __cold bool mvcc_kick_laggards(MDBX_txn *txn, const txnid_t straggler,
 
   do {
     env->lck->rdt_refresh_flag.weak = /* force refresh */ true;
-    orsi = mvcc_shapshot_oldest_rw(txn);
+    orsi = mvcc_snapshot_oldest_rw(txn);
     eASSERT0(env, orsi.oldest_txnid < env->basal_txn->txnid);
     eASSERT0(env, orsi.oldest_txnid >= straggler);
     eASSERT0(env, orsi.oldest_txnid >= env->lck->cached_oldest_txnid.weak);
@@ -37337,7 +37339,7 @@ static int cutoff_storey(MDBX_cursor *begin, MDBX_cursor *end, intptr_t level, b
 
 #endif /* MDBX_ENABLE_BUNCHES_REMOVAL */
 
-int tree_curoff_range(MDBX_cursor *begin, MDBX_cursor *end, bool end_including) {
+int tree_cutoff_range(MDBX_cursor *begin, MDBX_cursor *end, bool end_including) {
   cASSERT1(begin, cursor_is_tracked(begin));
   cASSERT1(end, cursor_is_tracked(end));
   ASSERT(begin->txn == end->txn && begin->clc == end->clc && begin->dbi_state == end->dbi_state &&
@@ -40209,7 +40211,7 @@ static int nested_undo(MDBX_txn *nested) {
   if (unlikely(parent->geo.upper != nested->geo.upper || parent->geo.now != nested->geo.now) &&
       !(parent->flags & MDBX_TXN_ERROR) && !(env->flags & ENV_FATAL_ERROR)) {
     /* undo resize performed by nested txn */
-    int err = dxb_resize(env, parent->geo.first_unallocated, parent->geo.now, parent->geo.upper, impilict_shrink);
+    int err = dxb_resize(env, parent->geo.first_unallocated, parent->geo.now, parent->geo.upper, implicit_shrink);
     if (err == MDBX_EPERM) {
       /* unable undo resize (it is regular for Windows),
        * therefore promote size changes from nested to the parent txn */
@@ -40940,7 +40942,7 @@ pgop_stat_t *txn_latency_gcprof(const MDBX_env *env, MDBX_commit_latency *latenc
 }
 
 __hot bool txn_gc_detent(const MDBX_txn *const txn) {
-  const txnid_t detent = mvcc_shapshot_oldest_rw(txn).oldest_txnid;
+  const txnid_t detent = mvcc_snapshot_oldest_rw(txn).oldest_txnid;
   if (likely(detent == txn->env->gc.detent))
     return false;
 
@@ -41070,7 +41072,7 @@ int txn_abort(MDBX_txn *txn, MDBX_commit_latency *latency) {
       do {
         snap = *latency;
         txn_latency_gcprof(txn->env, latency);
-      } while (unlikely(memcpy(latency, &snap, sizeof(snap))));
+      } while (unlikely(memcmp(latency, &snap, sizeof(snap))));
     }
   }
 
@@ -41128,7 +41130,7 @@ __cold static slr_t latch_maindb_locked(MDBX_txn *txn, MDBX_env *const env) {
   }
 
   slr.err = tbl_setup(env, &env->kvs[MAIN_DBI], &txn->dbs[MAIN_DBI]);
-  if (likely(slr.seq == MDBX_SUCCESS)) {
+  if (likely(slr.err == MDBX_SUCCESS)) {
     slr.seq = dbi_seq_next(env, MAIN_DBI);
     env->dbs_flags[MAIN_DBI] = DB_VALID | txn->dbs[MAIN_DBI].flags;
     atomic_store32(&env->dbi_seqs[MAIN_DBI], slr.seq, mo_AcquireRelease);
@@ -41934,10 +41936,10 @@ __dll_export
         0,
         14,
         2,
-        251,
+        265,
         "", /* pre-release suffix of SemVer
-                                        0.14.2.251 */
-        {"2026-07-04T12:31:19+03:00", "41ff7982ed05e02f145e0607377fd8c07107de56", "06d0f3adc9ada67e3eff0cb0beca2b102a59685b", "v0.14.2-251-g06d0f3ad"},
+                                        0.14.2.265 */
+        {"2026-07-06T02:57:15+03:00", "a4beb5c073e753f18a1d3a5fa141065ca09c36df", "2b00a10f1360fa28a041018d74c75dbe81931978", "v0.14.2-265-g2b00a10f"},
         sourcery};
 
 __dll_export
