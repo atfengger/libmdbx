@@ -1,4 +1,4 @@
-/* This file is part of the libmdbx amalgamated source code (v0.14.2-265-g2b00a10f at 2026-07-06T02:57:15+03:00).
+/* This file is part of the libmdbx amalgamated source code (v0.14.2-267-g5dbd78e6 at 2026-07-06T08:35:36+03:00).
  *
  * libmdbx (aka MDBX) is an extremely fast, compact, powerful, embeddedable, transactional key-value storage engine with
  * open-source code. MDBX has a specific set of properties and capabilities, focused on creating unique lightweight
@@ -460,8 +460,7 @@ int main(int argc, char *argv[]) {
         fprintf(stderr, "Interrupted by signal/user\n");
       break;
     default:
-      if (unlikely(rc != MDBX_SUCCESS))
-        error("mdbx_enumerate_tables", rc);
+      error("mdbx_enumerate_tables", rc);
     }
   }
 

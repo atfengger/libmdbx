@@ -1,4 +1,4 @@
-/* This file is part of the libmdbx amalgamated source code (v0.14.2-265-g2b00a10f at 2026-07-06T02:57:15+03:00).
+/* This file is part of the libmdbx amalgamated source code (v0.14.2-267-g5dbd78e6 at 2026-07-06T08:35:36+03:00).
  *
  * libmdbx (aka MDBX) is an extremely fast, compact, powerful, embeddedable, transactional key-value storage engine with
  * open-source code. MDBX has a specific set of properties and capabilities, focused on creating unique lightweight
@@ -413,7 +413,7 @@ __hot static int readline(MDBX_val *out, MDBX_val *buf) {
   l2 = len;
 
   /* Is buffer too short? */
-  while (c1[len - 1] != '\n') {
+  while (len == 0 || c1[len - 1] != '\n') {
     buf->iov_base = osal_realloc(buf->iov_base, buf->iov_len * 2);
     if (!buf->iov_base) {
       if (!quiet)
@@ -423,7 +423,7 @@ __hot static int readline(MDBX_val *out, MDBX_val *buf) {
     c1 = buf->iov_base;
     c1 += l2;
     errno = 0;
-    if (fgets((char *)c1, (int)buf->iov_len, stdin) == nullptr)
+    if (fgets((char *)c1, (int)(buf->iov_len - l2), stdin) == nullptr)
       return errno ? errno : EOF;
     buf->iov_len *= 2;
     len = strlen((char *)c1);
@@ -814,12 +814,16 @@ int main(int argc, char *argv[]) {
       err = readline(&key, &kbuf);
       if (err == EOF)
         break;
-
-      if (err == MDBX_SUCCESS)
-        err = readline(&data, &dbuf);
       if (err) {
         if (!quiet)
-          fprintf(stderr, "%s: line %" PRIiSIZE ": failed to read key value\n", prog, lineno);
+          fprintf(stderr, "%s: line %" PRIiSIZE ": failed to read %s\n", prog, lineno, "key");
+        goto bailout;
+      }
+
+      err = readline(&data, &dbuf);
+      if (err) {
+        if (!quiet)
+          fprintf(stderr, "%s: line %" PRIiSIZE ": failed to read %s\n", prog, lineno, "value");
         goto bailout;
       }
 
@@ -828,7 +832,7 @@ int main(int argc, char *argv[]) {
         continue;
       if (err == MDBX_BAD_VALSIZE && rescue) {
         if (!quiet)
-          fprintf(stderr, "%s: skip line %" PRIiSIZE ": due %s\n", prog, lineno, mdbx_strerror(err));
+          fprintf(stderr, "%s: skip line %" PRIiSIZE ": due to %s\n", prog, lineno, mdbx_strerror(err));
         continue;
       }
       if (unlikely(err != MDBX_SUCCESS)) {
@@ -902,8 +906,7 @@ int main(int argc, char *argv[]) {
       fprintf(stderr, "Interrupted by signal/user\n");
     break;
   default:
-    if (unlikely(err != MDBX_SUCCESS))
-      error("readline", err);
+    error("readline", err);
   }
 
 bailout:
