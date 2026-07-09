@@ -1,4 +1,4 @@
-/* This file is part of the libmdbx amalgamated source code (v0.14.2-267-g5dbd78e6 at 2026-07-06T08:35:36+03:00).
+/* This file is part of the libmdbx amalgamated source code (v0.14.2-274-g58ea7f56 at 2026-07-09T20:41:59+03:00).
  *
  * libmdbx (aka MDBX) is an extremely fast, compact, powerful, embeddedable, transactional key-value storage engine with
  * open-source code. MDBX has a specific set of properties and capabilities, focused on creating unique lightweight
@@ -24,7 +24,7 @@
 
 #define xMDBX_ALLOY 1  /* alloyed build */
 
-#define MDBX_BUILD_SOURCERY 440f035a570efaa452f937399464602f906db76ec162c69c12c9e08544a5dab7_v0_14_2_267_g5dbd78e6
+#define MDBX_BUILD_SOURCERY 80096459d7ca2ce7f10e9e82a01b71791d3e155dea887a83a0afe1e5babc1a98_v0_14_2_274_g58ea7f56
 
 #define LIBMDBX_INTERNALS
 #define MDBX_DEPRECATED
@@ -1477,7 +1477,7 @@ MDBX_INTERNAL void ior_put_event(osal_ioring_t *ior, HANDLE event);
 /*----------------------------------------------------------------------------*/
 /* libc compatibility stuff */
 
-#if (!defined(__GLIBC__) && __GLIBC_PREREQ(2, 1)) && (defined(_GNU_SOURCE) || defined(_BSD_SOURCE))
+#if (defined(__GLIBC__) && __GLIBC_PREREQ(2, 1)) && (defined(_GNU_SOURCE) || defined(_BSD_SOURCE))
 #define osal_asprintf asprintf
 #define osal_vasprintf vasprintf
 #else
@@ -3554,12 +3554,15 @@ MDBX_MAYBE_UNUSED static inline bool u128_lt(bin128_t x, bin128_t y) {
 }
 
 MDBX_MAYBE_UNUSED static inline bin128_t u128(uint64_t v) {
-  bin128_t r;
-  r.l = v;
-  r.h = 0;
+  bin128_t r = {.l = v, .h = 0};
 #if defined(__SIZEOF_INT128__)
   ASSERT(r.u128 == v);
 #endif
+  return r;
+}
+
+MDBX_MAYBE_UNUSED static inline bin128_t u128_max(void) {
+  bin128_t r = {.l = UINT64_MAX, .h = UINT64_MAX};
   return r;
 }
 

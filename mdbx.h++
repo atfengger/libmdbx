@@ -1,4 +1,4 @@
-﻿/// This file is part of the libmdbx amalgamated source code (v0.14.2-267-g5dbd78e6 at 2026-07-06T08:35:36+03:00).
+﻿/// This file is part of the libmdbx amalgamated source code (v0.14.2-274-g58ea7f56 at 2026-07-09T20:41:59+03:00).
 /// \file mdbx.h++
 /// \brief The libmdbx C++ API header file.
 ///
@@ -1502,7 +1502,6 @@ struct default_capacity_policy {
 
   static MDBX_CXX11_CONSTEXPR size_t round(const size_t value) {
     static_assert((pettiness_threshold & (pettiness_threshold - 1)) == 0, "pettiness_threshold must be a power of 2");
-    static_assert(pettiness_threshold % 2 == 0, "pettiness_threshold must be even");
     static_assert(pettiness_threshold >= sizeof(uint64_t), "pettiness_threshold must be > 7");
     constexpr const auto pettiness_mask = ~size_t(pettiness_threshold - 1);
     return (value + pettiness_threshold - 1) & pettiness_mask;
@@ -1855,7 +1854,7 @@ private:
 
     MDBX_CXX17_CONSTEXPR bool assign_move(silo &&other, bool is_reference) noexcept {
       release();
-      if (!allocation_aware_details::move_assign_alloc<silo, allocator_type>::is_moveable(this, other))
+      if (allocation_aware_details::move_assign_alloc<silo, allocator_type>::is_moveable(this, other))
         allocation_aware_details::move_assign_alloc<silo, allocator_type>::propagate(this, other);
       return is_reference ? false : move(std::move(other));
     }
@@ -2325,7 +2324,8 @@ public:
   }
 
   MDBX_CXX20_CONSTEXPR buffer make_inplace_or_reference() const {
-    return buffer(slice(), !is_inplace(), allocator_traits::select_on_container_copy_construction(get_allocator()));
+    return buffer(static_cast<const struct slice &>(*this), !is_inplace(),
+                  allocator_traits::select_on_container_copy_construction(get_allocator()));
   }
 
   MDBX_CXX20_CONSTEXPR buffer &assign(size_t headroom, const buffer &src, size_t tailroom) {
@@ -2700,9 +2700,9 @@ template <typename ALLOCATOR, typename CAPACITY_POLICY> struct buffer_pair_spec 
   buffer_pair_spec(const pair &pair, bool make_reference, const allocator_type &alloc = allocator_type())
       : buffer_pair_spec(pair.key, pair.value, make_reference, alloc) {}
 
-  buffer_pair_spec(const txn &transacton, const slice &key, const slice &value,
+  buffer_pair_spec(const txn &transaction, const slice &key, const slice &value,
                    const allocator_type &alloc = allocator_type())
-      : key(transacton, key, alloc), value(transacton, value, alloc) {}
+      : key(transaction, key, alloc), value(transaction, value, alloc) {}
   buffer_pair_spec(const txn &transaction, const pair &pair, const allocator_type &alloc = allocator_type())
       : buffer_pair_spec(transaction, pair.key, pair.value, alloc) {}
 
@@ -4617,10 +4617,11 @@ MDBX_CXX11_CONSTEXPR const build_info &get_build() noexcept { return ::mdbx_buil
 static MDBX_CXX17_CONSTEXPR size_t strlen(const char *c_str) noexcept {
 #if defined(__cpp_lib_is_constant_evaluated) && __cpp_lib_is_constant_evaluated >= 201811L
   if (::std::is_constant_evaluated()) {
-    for (size_t i = 0; c_str; ++i)
-      if (!c_str[i])
-        return i;
-    return 0;
+    size_t i = 0;
+    if (c_str)
+      while (c_str[i])
+        ++i;
+    return i;
   }
 #endif /* __cpp_lib_is_constant_evaluated >= 201811 */
 #if defined(__cpp_lib_string_view) && __cpp_lib_string_view >= 201606L
@@ -4695,9 +4696,9 @@ MDBX_CXX11_CONSTEXPR bool operator!=(const error &a, const error &b) noexcept { 
 
 MDBX_CXX11_CONSTEXPR bool error::is_success() const noexcept { return code_ == MDBX_SUCCESS; }
 
-MDBX_CXX11_CONSTEXPR bool error::is_result_true() const noexcept { return code_ == MDBX_RESULT_FALSE; }
+MDBX_CXX11_CONSTEXPR bool error::is_result_true() const noexcept { return code_ == MDBX_RESULT_TRUE; }
 
-MDBX_CXX11_CONSTEXPR bool error::is_result_false() const noexcept { return code_ == MDBX_RESULT_TRUE; }
+MDBX_CXX11_CONSTEXPR bool error::is_result_false() const noexcept { return code_ == MDBX_RESULT_FALSE; }
 
 MDBX_CXX11_CONSTEXPR bool error::is_failure() const noexcept {
   return code_ != MDBX_SUCCESS && code_ != MDBX_RESULT_TRUE;
@@ -4953,7 +4954,7 @@ MDBX_CXX14_CONSTEXPR slice slice::safe_tail(size_t n) const {
 MDBX_CXX14_CONSTEXPR slice slice::safe_middle(size_t from, size_t n) const {
   if (MDBX_UNLIKELY(n > max_length))
     MDBX_CXX20_UNLIKELY throw_max_length_exceeded();
-  if (MDBX_UNLIKELY(from + n > size()))
+  if (MDBX_UNLIKELY(from + n /* no overflow possible here, since size() < max_length */ > size()))
     MDBX_CXX20_UNLIKELY throw_out_range();
   return middle(from, n);
 }
@@ -5002,7 +5003,10 @@ MDBX_NOTHROW_PURE_FUNCTION MDBX_CXX14_CONSTEXPR bool operator!=(const slice &a, 
 
 #if defined(__cpp_impl_three_way_comparison) && __cpp_impl_three_way_comparison >= 201907L
 MDBX_NOTHROW_PURE_FUNCTION MDBX_CXX14_CONSTEXPR auto operator<=>(const slice &a, const slice &b) noexcept {
-  return slice::compare_lexicographically(a, b);
+  const auto cmp = slice::compare_lexicographically(a, b);
+  return (cmp < 0)   ? std::strong_ordering::less
+         : (cmp > 0) ? std::strong_ordering::greater
+                     : std::strong_ordering::equal;
 }
 #endif /* __cpp_impl_three_way_comparison */
 

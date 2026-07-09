@@ -1,4 +1,4 @@
-/** This file is part of the libmdbx amalgamated source code (v0.14.2-267-g5dbd78e6 at 2026-07-06T08:35:36+03:00).
+/** This file is part of the libmdbx amalgamated source code (v0.14.2-274-g58ea7f56 at 2026-07-09T20:41:59+03:00).
 
 \file mdbx.h
 \brief The libmdbx C API header file.
@@ -1992,7 +1992,7 @@ typedef enum MDBX_error {
   MDBX_BACKLOG_DEPLETED = -30414,
 
   /** Alternative/Duplicate LCK-file is exists and should be removed manually */
-  MDBX_DUPLICATED_CLK = -30413,
+  MDBX_DUPLICATED_LCK = -30413,
 
   /** Some cursors and/or other resources should be closed before table or
    *  corresponding DBI-handle could be (re)used and/or closed. */
@@ -5122,7 +5122,7 @@ LIBMDBX_INLINE_API(int, mdbx_dbi_flags, (const MDBX_txn *txn, MDBX_dbi dbi, unsi
  * any transaction(s) running by other thread(s).
  * So the `mdbx_dbi_close()` MUST NOT be called in-parallel/concurrently
  * with any transactions using the closing dbi-handle, nor during other thread
- * commit/abort a write transacton(s). The "next" version of libmdbx (\ref
+ * commit/abort a write transaction(s). The "next" version of libmdbx (\ref
  * MithrilDB) will solve this issue.
  *
  * Handles should only be closed if no other threads are going to reference

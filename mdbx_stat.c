@@ -1,4 +1,4 @@
-/* This file is part of the libmdbx amalgamated source code (v0.14.2-267-g5dbd78e6 at 2026-07-06T08:35:36+03:00).
+/* This file is part of the libmdbx amalgamated source code (v0.14.2-274-g58ea7f56 at 2026-07-09T20:41:59+03:00).
  *
  * libmdbx (aka MDBX) is an extremely fast, compact, powerful, embeddedable, transactional key-value storage engine with
  * open-source code. MDBX has a specific set of properties and capabilities, focused on creating unique lightweight
@@ -348,7 +348,7 @@ int main(int argc, char *argv[]) {
     printf("  Latter reader transaction ID: %" PRIu64 " (%" PRIi64 ")\n", mei.mi_latter_reader_txnid,
            mei.mi_latter_reader_txnid - mei.mi_recent_txnid);
     printf("  Max readers: %u\n", mei.mi_maxreaders);
-    printf("  Number of reader slots uses: %u\n", mei.mi_numreaders);
+    printf("  Number of reader slots in use: %u\n", mei.mi_numreaders);
   }
 
   if (show_readers) {
@@ -396,8 +396,10 @@ int main(int argc, char *argv[]) {
       goto txn_abort;
     }
 
-    const size_t remained_pages = info.pages_total - info.pages_allocated;
-    const size_t used_pages = info.pages_allocated - info.pages_gc;
+    const size_t remained_pages =
+        info.pages_total - info.pages_allocated; /* the pages_allocated cannot be greater than the pages_total */
+    const size_t used_pages =
+        info.pages_allocated - info.pages_gc; /* the pages_gc cannot be greater than the pages_allocated */
     const size_t gc_retained = info.pages_gc - info.gc_reclaimable.pages;
     const size_t available_pages = info.gc_reclaimable.pages + remained_pages;
     print_pages_percentage("Total", info.pages_total, info.pages_backed, info.pages_total);

@@ -1,4 +1,4 @@
-/* This file is part of the libmdbx amalgamated source code (v0.14.2-267-g5dbd78e6 at 2026-07-06T08:35:36+03:00).
+/* This file is part of the libmdbx amalgamated source code (v0.14.2-274-g58ea7f56 at 2026-07-09T20:41:59+03:00).
  *
  * libmdbx (aka MDBX) is an extremely fast, compact, powerful, embeddedable, transactional key-value storage engine with
  * open-source code. MDBX has a specific set of properties and capabilities, focused on creating unique lightweight
@@ -411,10 +411,10 @@ int main(int argc, char *argv[]) {
     defrag_notify(nullptr, &result);
 
     if (!MDBX_IS_ERROR(rc)) {
-      rc = MDBX_SUCCESS;
       if (!quiet) {
         printf("Defragmentation%s: shrinked %zi pages, %u passes, moved %zu pages",
-               (rc == MDBX_SUCCESS) ? "" : " incomplete", result.pages_shrinked, result.cycles, result.pages_moved);
+               (rc == MDBX_SUCCESS) ? " done" : " incomplete", result.pages_shrinked, result.cycles,
+               result.pages_moved);
         if (result.stopping_reasons)
           printf(", stopping reasons bits 0x%x", result.stopping_reasons);
         printf(", took %s seconds, %s\n",
@@ -422,10 +422,11 @@ int main(int argc, char *argv[]) {
                stop_reason(&result));
       }
     }
+    rc = MDBX_SUCCESS;
   }
 
   if (txn) {
-    if (MDBX_IS_ERROR(rc))
+    if (rc != MDBX_SUCCESS)
       mdbx_txn_abort(txn);
     else {
       act = "final commit";
@@ -434,12 +435,12 @@ int main(int argc, char *argv[]) {
     txn = nullptr;
   }
 
-  if (!quiet && MDBX_IS_ERROR(rc)) {
+  if (!quiet && rc != MDBX_SUCCESS) {
     fflush(nullptr);
     fprintf(stderr, "%s: %s failed, error %d (%s)\n", progname, act, rc, mdbx_strerror(rc));
   }
 
   mdbx_env_close(env);
   fflush(nullptr);
-  return MDBX_IS_ERROR(rc) ? EXIT_FAILURE : EXIT_SUCCESS;
+  return (rc != MDBX_SUCCESS) ? EXIT_FAILURE : EXIT_SUCCESS;
 }
