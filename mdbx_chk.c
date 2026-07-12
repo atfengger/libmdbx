@@ -1,4 +1,4 @@
-/* This file is part of the libmdbx amalgamated source code (v0.14.2-274-g58ea7f56 at 2026-07-09T20:41:59+03:00).
+/* This file is part of the libmdbx amalgamated source code (v0.14.2-293-g43618122 at 2026-07-13T02:40:29+03:00).
  *
  * libmdbx (aka MDBX) is an extremely fast, compact, powerful, embeddedable, transactional key-value storage engine with
  * open-source code. MDBX has a specific set of properties and capabilities, focused on creating unique lightweight
@@ -192,7 +192,7 @@ static FILE *MDBX_PRINTF_ARGS(2, 3) print_ln(enum MDBX_chk_severity severity, co
 }
 
 static void logger(MDBX_log_level_t level, const char *function, int line, const char *fmt, va_list args) {
-  if (level <= MDBX_LOG_ERROR)
+  if (level <= MDBX_LOG_ERROR && chk.internal)
     mdbx_env_chk_encount_problem(&chk);
 
   const unsigned kind =
@@ -328,15 +328,15 @@ static void print_done(MDBX_chk_line_t *line) {
 }
 
 static void print_chars(MDBX_chk_line_t *line, const char *str, size_t len) {
-  if (line->empty)
-    prefix(line->severity);
-  fwrite(str, 1, len, line_output);
+  FILE *const out = line->empty ? prefix(line->severity) : line_output;
+  if (out)
+    fwrite(str, 1, len, out);
 }
 
 static void print_format(MDBX_chk_line_t *line, const char *fmt, va_list args) {
-  if (line->empty)
-    prefix(line->severity);
-  vfprintf(line_output, fmt, args);
+  FILE *const out = line->empty ? prefix(line->severity) : line_output;
+  if (out)
+    vfprintf(out, fmt, args);
 }
 
 static const MDBX_chk_callbacks_t cb = {.check_break = check_break,

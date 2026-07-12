@@ -21,50 +21,6 @@ The supporting release of a stable branch with bug fixes.
  - [Cosmin Apreutesei](https://github.com/capr) for bugs reporting.
  - [stslam](https://github.com/stslam) for Embarcadero C++ Builder support.
 
-### Improvements:
-
- - Deferred invalidation of the dbi-handles of dropped tables has been implemented until the corresponding transactions are committed.
-
-   Previously, libmdbx implemented the behavior historically inherited from LMDB, when handles of a dropped tables were immediately closed, regardless of the possible subsequent abortion of such transactions.
-   Now, when tables are dropped, both ones associated handles and data remain available for other transactions running in parallel within the current process.
-
-   This improvement has been asking for a long time, but it required a lot of preparation and refactoring which are done step-by-step during a few last releases.
-
- - Embarcadero C++ Builder now could be used to build libmdbx on Windows.
-
- - Allowed to use cursors binded to the same table/DBI, but to different read-only transaction, in an API with multiple cursors in the parameters.
-
- - Added the missing recipe for Conan to an amalgamated source code.
-
- - Added check-and-retry of presync-to-disk condition to avoid latency spikes in commit path during asynchronous calls of `mdbx_env_sync()`, `mdbx_env_sync_ex()`, `mdbx_env_sync_poll()`.
-
- - Added the `MDBX_opt_presync_threshold` option.
-
-### Fixes:
-
- - Fixed assertions triggering in a specific scenarios of creating and renaming tables within nested transactions.
-
- - Fixed the [issue](https://github.com/Mithril-mine/libmdbx/issues/361) of loosing a table content after abortion the nested transaction where such table was dropped.
-
- - Fixed `ERROR_LOCK_VIOLATION` during defrag on Windows in operation modes using overlapped I/O.
-
- - Fixed a lot of typos and other minors by AI suggestions.
-
- - Fixed off-by-one bugs in the `mdbx::from_base64` and `mdbx::slice::is_printable()`.
-
- - Fixed major typo in condition inside `latch_maindb_locked()`.
-   However, despite the severity of the error, the scenario of its manifestation could not be found due to a combination of other checks in the code.
-
- - Fixed possibility of infinite loop inside `mdbx_txn_abort()` because of `memcmp()`/`memcpy()` typo.
-
- - Fixed `env_owned_wrtxn()` to avoid by-pass locking in the `MDBX_NOSTICKYTHREADS` mode.
-
- - Fixed missing `return` statement in an one of error paths inside `mdbx_cursor_bind()`.
-
- - Fixed potential buffer overread by `fgets()` in `mdbx_load` utility.
-
- - Fixed a lot of typos and a few bugs detected by CodeQL.
-
 ### Backward compatibility breaks:
 
  - Now API functions that do not receive a transaction in arguments, but require a write lock, always checks that the current thread owns (launched) the writing transaction.
@@ -88,11 +44,67 @@ The supporting release of a stable branch with bug fixes.
  - On Windows platform the Windows-10 API is now used by default.
    Previous versions are still supported, but now they should be explicitly requested during library build by defining `_WIN32_WINNT`
 
+### Improvements:
+
+ - Deferred invalidation of the dbi-handles of dropped tables has been implemented until the corresponding transactions are committed.
+
+   Previously, libmdbx implemented the behavior historically inherited from LMDB, when handles of a dropped tables were immediately closed, regardless of the possible subsequent abortion of such transactions.
+   Now, when tables are dropped, both ones associated handles and data remain available for other transactions running in parallel within the current process.
+
+   This improvement has been asking for a long time, but it required a lot of preparation and refactoring which are done step-by-step during a few last releases.
+
+ - Embarcadero C++ Builder now could be used to build libmdbx on Windows.
+
+ - Allowed to use cursors binded to the same table/DBI, but to different read-only transaction, in an API with multiple cursors in the parameters.
+
+ - Added the missing recipe for Conan to an amalgamated source code.
+
+ - Added check-and-retry of presync-to-disk condition to avoid latency spikes in commit path during asynchronous calls of `mdbx_env_sync()`, `mdbx_env_sync_ex()`, `mdbx_env_sync_poll()`.
+
+ - Added the `MDBX_opt_presync_threshold` option.
+
+ - In the C++ API the move assignment operator of the `mdbx::buffer<>` template now supports the case of unequal allocators by copying the contents of a source.
+
+ - Added adjustment of the maximum size of the database and memory mapping in the modes of using Valgrind or AddressSanitizer, which greatly simplifies the use of these tools.
+
+### Fixes:
+
+ - Fixed assertions triggering in a specific scenarios of creating and renaming tables within nested transactions.
+
+ - Fixed the [issue](https://github.com/Mithril-mine/libmdbx/issues/361) of loosing a table content after abortion the nested transaction where such table was dropped.
+
+ - Fixed `ERROR_LOCK_VIOLATION` during defrag on Windows in operation modes using overlapped I/O.
+
+ - Fixed a lot of typos and other minors by AI suggestions.
+
+ - Fixed off-by-one bugs in the `mdbx::from_base64` and `mdbx::slice::is_printable()`.
+
+ - Fixed major typo in condition inside `latch_maindb_locked()`.
+   However, despite the severity of the error, the scenario of its manifestation could not be found due to a combination of other checks in the code.
+
+ - Fixed possibility of infinite loop inside `mdbx_txn_abort()` because of `memcmp()`/`memcpy()` typo.
+
+ - Fixed `env_owned_wrtxn()` to avoid by-pass locking in the `MDBX_NOSTICKYTHREADS` mode.
+
+ - Fixed missing `return` statement in one of the error paths inside `mdbx_cursor_bind()`.
+
+ - Fixed potential buffer overread by `fgets()` in `mdbx_load` utility.
+
+ - Fixed a lot of typos and a few bugs detected by CodeQL.
+
+ - Fixed ODR-violations warnings from modern GCC while both LTO and UBSAN are enabled.
+
+ - Fixed unreasonably high memory 2GB consumption in `mdbx_load` utility due to leftover debug changes.
+
+ - Fixed running `ctest -T memcheck` by adding workaround of CTest/CMake bugs for Valgrind parameters.
+
+ - Fixed/removed leftover usage of float point in `mdbx_stat` utility.
+
 --------------------------------------------------------------------------------
 
 ## v0.14.2 "Буревестник" (stormy petrel, aka Bourevestnik) at 2026-05-14
 
-The frontward release with new major features and internal refactoring.
+The forward-looking release with new major features and internal refactoring.
 
 ### Important:
 
@@ -185,7 +197,7 @@ The frontward release with new major features and internal refactoring.
 
  - The command-line options `-b number`, `-L megabytes`, `-d percent` and `-G geometry` have been added to the `mdbx_load` utility, allowing you to set the size of batch inserts, limit the volume of transactions, set the desired page filling density and redefine the geometry of the database when loading data from a dump.
 
- - Search was accelerated by using a branchless algorithm and embedding code of  built-in/default comparators.
+ - Search was accelerated by using a branchless algorithm and embedding code of built-in/default comparators.
 
  - Redesigned internal verification statements and related build options.
    At the same time, `NDEBUG` no longer affects checks in the main engine code, which eliminates the causes of unexpected performance drops due to the lack of a definition of `NDEBUG` in non-debugging builds of users.
@@ -280,7 +292,7 @@ The frontward release with new major features and internal refactoring.
 
  - The `mdbx_load` utility has fixed errors in loading zero-length values and exchanging shrink/growth parameters in the database geometry.
 
- - Fixed a crash in the `SIGSEGV` software when all meta pages are not fully usable.
+ - Fixed a `SIGSEGV` crash when all meta pages are not fully usable.
 
  - Fixed a typo in the condition for determining a change in the size of the database when rolling back a nested transaction.
 
@@ -288,7 +300,7 @@ The frontward release with new major features and internal refactoring.
 
  - Fixed a typo in the `ST_EXPORTED` processing path that broke the build on platforms where the mentioned flag is defined for `fstatvfs()`.
 
- - Fixed the crash of the `SIGSEGV` software due to an attempt to clean/overwrite a corrupted meta page when opening the database in read-only mode.
+ - Fixed a `SIGSEGV` crash due to an attempt to clean/overwrite a corrupted meta page when opening the database in read-only mode.
 
 --------------------------------------------------------------------------------
 
@@ -523,7 +535,7 @@ English version [by liar Google](https://libmdbx-dqdkfa-ru.translate.goog/md__ch
 
  - Кратное сокращение итераций тестов в зависимости от конфигурации Valgrind/Debug/CI.
 
- - Устранены предупреждения UBASN о невыравненном доступе в тесте extra/close-dbi.
+ - Устранены предупреждения UBSAN о невыравненном доступе в тесте extra/close-dbi.
 
  - Добавлен перехват и логирование исключений в extra-тестах на C++.
 
@@ -886,7 +898,7 @@ Other:
 
  - Дополнен тест курсоров extra/cursor-closing.
 
- - В `NOTICE` обновлена информация о Github.
+ - В `NOTICE` обновлена информация о GitHub.
 
 --------------------------------------------------------------------------------
 
@@ -1004,7 +1016,7 @@ Other:
 
  - Кратное сокращение итераций тестов в зависимости от конфигурации Valgrind/Debug/CI.
 
- - Устранены предупреждения UBASN о невыравненном доступе в тесте extra/close-dbi.
+ - Устранены предупреждения UBSAN о невыравненном доступе в тесте extra/close-dbi.
 
  - Добавлен перехват и логирование исключений в extra-тестах на C++.
 
@@ -1460,7 +1472,7 @@ Other:
 лет после выпуска 0.12.1.
 
 ```
-git diff' stat: 14 commits, 7 files changed, 256 insertions(+), 103 deletions(-)
+git diff --stat: 14 commits, 7 files changed, 256 insertions(+), 103 deletions(-)
 Signed-off-by: Леонид Юрьев (Leonid Yuriev) <leo@yuriev.ru>
 ```
 
@@ -1521,7 +1533,7 @@ Signed-off-by: Леонид Юрьев (Leonid Yuriev) <leo@yuriev.ru>
 рекомендуется использовать ветку `master`.
 
 ```
-git diff' stat: 6 commits, 5 files changed, 239 insertions(+), 6 deletions(-)
+git diff --stat: 6 commits, 5 files changed, 239 insertions(+), 6 deletions(-)
 Signed-off-by: Леонид Юрьев (Leonid Yuriev) <leo@yuriev.ru>
 ```
 
@@ -1563,7 +1575,7 @@ Signed-off-by: Леонид Юрьев (Leonid Yuriev) <leo@yuriev.ru>
 военных спутников США.
 
 ```
-git diff' stat: 29 commits, 14 files changed, 379 insertions(+), 151 deletions(-)
+git diff --stat: 29 commits, 14 files changed, 379 insertions(+), 151 deletions(-)
 Signed-off-by: Леонид Юрьев (Leonid Yuriev) <leo@yuriev.ru>
 ```
 
@@ -1622,7 +1634,7 @@ Signed-off-by: Леонид Юрьев (Leonid Yuriev) <leo@yuriev.ru>
 в память Героя России гвардии майора Дмитрия Семёнова с позывным "СЭМ".
 
 ```
-git diff' stat: 19 commits, 57 files changed, 751 insertions(+), 331 deletions(-)
+git diff --stat: 19 commits, 57 files changed, 751 insertions(+), 331 deletions(-)
 Signed-off-by: Леонид Юрьев (Leonid Yuriev) <leo@yuriev.ru>
 ```
 
@@ -1700,7 +1712,7 @@ Signed-off-by: Леонид Юрьев (Leonid Yuriev) <leo@yuriev.ru>
 Стабилизирующий выпуск с исправлением обнаруженных ошибок и устранением недочетов.
 
 ```
-git diff' stat: 32 commits, 8 files changed, 667 insertions(+), 401 deletions(-)
+git diff --stat: 32 commits, 8 files changed, 667 insertions(+), 401 deletions(-)
 Signed-off-by: Леонид Юрьев (Leonid Yuriev) <leo@yuriev.ru>
 ```
 
@@ -1764,7 +1776,7 @@ Signed-off-by: Леонид Юрьев (Leonid Yuriev) <leo@yuriev.ru>
 в день 100-летия со дня рождения выдающегося советского и российского ученого и конструктора [Влади́мира Фёдоровича У́ткина](https://ru.wikipedia.org/wiki/Уткин,_Владимир_Фёдорович).
 
 ```
-git diff' stat: 24 commits, 18 files changed, 624 insertions(+), 94 deletions(-)
+git diff --stat: 24 commits, 18 files changed, 624 insertions(+), 94 deletions(-)
 Signed-off-by: Леонид Юрьев (Leonid Yuriev) <leo@yuriev.ru>
 ```
 
@@ -2054,7 +2066,7 @@ Signed-off-by: Леонид Юрьев (Leonid Yuriev) <leo@yuriev.ru>
 Новое:
 
  - Использование адреса [https://libmdbx.dqdkfa.ru/dead-github](https://libmdbx.dqdkfa.ru/dead-github)
-   для отсылки к сохранённым в web.archive.org копиям ресурсов, уничтоженных администрацией Github.
+   для отсылки к сохранённым в web.archive.org копиям ресурсов, уничтоженных администрацией GitHub.
 
  - Реализована prefault-запись при выделении страниц для read-write отображений.
    Это приводит к кратному снижению системных издержек и существенному увеличению
@@ -2344,7 +2356,7 @@ Signed-off-by: Леонид Юрьев (Leonid Yuriev) <leo@yuriev.ru>
 
 ## v0.12.1 "Positive Proxima" at 2022-08-24
 
-The planned frontward release with new superior features on the day of 20 anniversary of [Positive Technologies](https://ptsecurty.com).
+The planned frontward release with new superior features on the day of 20 anniversary of [Positive Technologies](https://ptsecurity.com).
 
 ```
 37 files changed, 7604 insertions(+), 7417 deletions(-)

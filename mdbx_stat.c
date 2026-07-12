@@ -1,4 +1,4 @@
-/* This file is part of the libmdbx amalgamated source code (v0.14.2-274-g58ea7f56 at 2026-07-09T20:41:59+03:00).
+/* This file is part of the libmdbx amalgamated source code (v0.14.2-293-g43618122 at 2026-07-13T02:40:29+03:00).
  *
  * libmdbx (aka MDBX) is an extremely fast, compact, powerful, embeddedable, transactional key-value storage engine with
  * open-source code. MDBX has a specific set of properties and capabilities, focused on creating unique lightweight
@@ -95,10 +95,12 @@ static int reader_list_func(void *ctx, int num, int slot, mdbx_pid_t pid, mdbx_t
 
   printf(" %3d)\t[%d]\t%10" PRIdSIZE " %*s", num, slot, (size_t)pid, (int)sizeof(size_t) * 2, thread_str);
 
-  if (txnid)
-    printf(" %20" PRIu64 " %10" PRIu64 " %12.1fM %12.1fM\n", txnid, lag, bytes_used / 1048576.0,
-           bytes_retained / 1048576.0);
-  else
+  if (txnid) {
+    char buf_bytes_used[42], buf_bytes_retained[42];
+    printf(" %20" PRIu64 " %10" PRIu64 " %12sM %12sM\n", txnid, lag,
+           mdbx_ratio2digits(bytes_used, 1048576, 1, buf_bytes_used, sizeof(buf_bytes_used)),
+           mdbx_ratio2digits(bytes_retained, 1048576, 1, buf_bytes_retained, sizeof(buf_bytes_retained)));
+  } else
     printf(" %20s %10s %13s %13s\n", "-", "0", "0", "0");
 
   return user_break ? MDBX_RESULT_TRUE : MDBX_RESULT_FALSE;

@@ -1,4 +1,4 @@
-/* This file is part of the libmdbx amalgamated source code (v0.14.2-274-g58ea7f56 at 2026-07-09T20:41:59+03:00).
+/* This file is part of the libmdbx amalgamated source code (v0.14.2-293-g43618122 at 2026-07-13T02:40:29+03:00).
  *
  * libmdbx (aka MDBX) is an extremely fast, compact, powerful, embeddedable, transactional key-value storage engine with
  * open-source code. MDBX has a specific set of properties and capabilities, focused on creating unique lightweight
@@ -24,7 +24,7 @@
 
 #define xMDBX_ALLOY 1  /* alloyed build */
 
-#define MDBX_BUILD_SOURCERY 80096459d7ca2ce7f10e9e82a01b71791d3e155dea887a83a0afe1e5babc1a98_v0_14_2_274_g58ea7f56
+#define MDBX_BUILD_SOURCERY c66fe3bf2ba78557c9b02e51851ce8bbbccb58a96dc20c81a5bc591858a8a1f2_v0_14_2_293_g43618122
 
 #define LIBMDBX_INTERNALS
 #define MDBX_DEPRECATED
@@ -924,11 +924,16 @@ __extern_C key_t ftok(const char *, int);
 #endif /* ENABLE_MEMCHECK */
 
 #ifdef __SANITIZE_ADDRESS__
+#define RUNNING_ON_ASAN (1)
 #include <sanitizer/asan_interface.h>
 #elif !defined(ASAN_POISON_MEMORY_REGION)
 #define ASAN_POISON_MEMORY_REGION(addr, size) ((void)(addr), (void)(size))
 #define ASAN_UNPOISON_MEMORY_REGION(addr, size) ((void)(addr), (void)(size))
 #endif /* __SANITIZE_ADDRESS__ */
+
+#ifndef RUNNING_ON_ASAN
+#define RUNNING_ON_ASAN (0)
+#endif
 
 /*----------------------------------------------------------------------------*/
 /* DTrace dynamic tracing framework */
@@ -1593,6 +1598,7 @@ enum osal_syncmode_bits {
 MDBX_INTERNAL int osal_fsync(mdbx_filehandle_t fd, const enum osal_syncmode_bits mode_bits);
 MDBX_INTERNAL int osal_fsetsize(mdbx_filehandle_t fd, const uint64_t length);
 MDBX_INTERNAL int osal_fseek(mdbx_filehandle_t fd, uint64_t pos);
+MDBX_INTERNAL int osal_fseek_shut(mdbx_filehandle_t fd, uint64_t *safe_parking_lot_offset);
 MDBX_INTERNAL int osal_filesize(mdbx_filehandle_t fd, uint64_t *length);
 
 enum osal_openfile_purpose {
@@ -3066,6 +3072,7 @@ typedef struct shared_lck {
 
 #define MDBX_GOLD_RATIO_DBL 1.6180339887498948482
 #define MEGABYTE ((size_t)1 << 20)
+#define GIGABYTE ((size_t)1 << 30)
 
 /*----------------------------------------------------------------------------*/
 
@@ -3078,6 +3085,7 @@ union logger_union {
 struct libmdbx_globals {
   bin128_t bootid;
   unsigned sys_pagesize, sys_allocation_granularity;
+  size_t assume_ram_pages, mmap_limit, reasonable_db_maxsize;
 #ifdef AT_UCACHEBSIZE
   unsigned sys_unified_cache_block;
 #endif /* AT_UCACHEBSIZE */
@@ -3088,6 +3096,9 @@ struct libmdbx_globals {
   bool running_under_Wine;
 #elif defined(__linux__) || defined(__gnu_linux__)
   bool running_on_WSL1 /* Windows Subsystem 1 for Linux */;
+#ifdef ENABLE_MEMCHECK
+  uint8_t running_on_Valgrind;
+#endif /* ENABLE_MEMCHECK */
   uint32_t linux_kernel_version;
 #endif /* Linux */
   union logger_union logger;
@@ -3105,6 +3116,14 @@ extern struct libmdbx_globals globals;
 #if IS_WINDOWS
 extern struct libmdbx_imports imports;
 #endif /* Windows */
+
+static inline unsigned mdbx_running_on_Valgrind(void) {
+#ifdef ENABLE_MEMCHECK
+  return globals.running_on_Valgrind;
+#else
+  return 0;
+#endif /* ENABLE_MEMCHECK */
+}
 
 #ifndef __Wpedantic_format_voidptr
 MDBX_MAYBE_UNUSED static inline const void *__Wpedantic_format_voidptr(const void *ptr) { return ptr; }
