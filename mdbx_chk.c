@@ -1,4 +1,4 @@
-/* This file is part of the libmdbx amalgamated source code (v0.14.2-302-g904f30d7 at 2026-07-15T01:38:18+03:00).
+/* This file is part of the libmdbx amalgamated source code (v0.14.2-308-g0f3801d4 at 2026-07-15T11:46:31+03:00).
  *
  * libmdbx (aka MDBX) is an extremely fast, compact, powerful, embeddedable, transactional key-value storage engine with
  * open-source code. MDBX has a specific set of properties and capabilities, focused on creating unique lightweight
@@ -531,7 +531,7 @@ int main(int argc, char *argv[]) {
 
   rc = MDBX_SUCCESS;
   if (stuck_meta >= 0 && (env_flags & MDBX_EXCLUSIVE) == 0) {
-    error_fmt("exclusive mode is required to using specific meta-page(%d) for "
+    error_fmt("exclusive mode is required to use specific meta-page(%d) for "
               "checking.",
               stuck_meta);
     rc = EXIT_INTERRUPTED;
@@ -547,7 +547,7 @@ int main(int argc, char *argv[]) {
       rc = EXIT_INTERRUPTED;
     }
     if (only_table.iov_base || (chk_flags & (MDBX_CHK_SKIP_BTREE_TRAVERSAL | MDBX_CHK_SKIP_KV_TRAVERSAL))) {
-      error_fmt("whole database checking with b-tree traversal are required to turn "
+      error_fmt("whole database checking with b-tree traversal is required to turn "
                 "to the specified meta-page.");
       rc = EXIT_INTERRUPTED;
     }

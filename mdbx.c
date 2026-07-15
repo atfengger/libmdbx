@@ -1,4 +1,4 @@
-/* This file is part of the libmdbx amalgamated source code (v0.14.2-302-g904f30d7 at 2026-07-15T01:38:18+03:00).
+/* This file is part of the libmdbx amalgamated source code (v0.14.2-308-g0f3801d4 at 2026-07-15T11:46:31+03:00).
  *
  * libmdbx (aka MDBX) is an extremely fast, compact, powerful, embeddedable, transactional key-value storage engine with
  * open-source code. MDBX has a specific set of properties and capabilities, focused on creating unique lightweight
@@ -29189,10 +29189,10 @@ __cold void osal_panic(const char *msg, const char *func, unsigned line) {
 
 #ifndef osal_vasprintf
 int osal_vasprintf(char **strp, const char *fmt, va_list ap) {
-  va_list ones;
-  va_copy(ones, ap);
-  const int needed = vsnprintf(nullptr, 0, fmt, ones);
-  va_end(ones);
+  va_list ap_copy;
+  va_copy(ap_copy, ap);
+  const int needed = vsnprintf(nullptr, 0, fmt, ap_copy);
+  va_end(ap_copy);
 
   if (unlikely(needed < 0 || needed >= INT_MAX)) {
     *strp = nullptr;
@@ -29426,7 +29426,10 @@ _Function_class_(EXCEPTION_ROUTINE)
   if (pExceptionRecord->ExceptionCode) {
     NT_TIB *const TIB = (NT_TIB *)NtCurrentTeb();
     seh_ctx_t *seh = (seh_ctx_t *)TIB->ExceptionList;
-    do {
+#ifndef EXCEPTION_CHAIN_END
+#define EXCEPTION_CHAIN_END ((PEXCEPTION_REGISTRATION_RECORD)-1)
+#endif
+    while (seh && seh != (seh_ctx_t *)EXCEPTION_CHAIN_END) {
       if (seh->Registration.Handler == mdbx_simple_SEH &&
           (seh->filter == pExceptionRecord->ExceptionCode ||
            (seh->filter == EXCEPTION_ACCESS_VIOLATION && pExceptionRecord->ExceptionCode == EXCEPTION_IN_PAGE_ERROR))) {
@@ -29439,7 +29442,7 @@ _Function_class_(EXCEPTION_ROUTINE)
         return ExceptionContinueExecution;
       }
       seh = (seh_ctx_t *)seh->Registration.Next;
-    } while (seh);
+    }
   }
   return ExceptionContinueSearch;
 }
@@ -29507,7 +29510,11 @@ bool osal_safe_peek_int32(const void *ptr, int32_t *dest) {
   int fd = nullfd; /* we sure int read is atomic */
   if (fd < 0) {
     static pthread_mutex_t nullfd_mutex = PTHREAD_MUTEX_INITIALIZER;
-    pthread_mutex_lock(&nullfd_mutex);
+    int rc = pthread_mutex_lock(&nullfd_mutex);
+    if (unlikely(rc != 0)) {
+      ERROR("pthread_mutex_lock(nullfd_mutex), err %d", rc);
+      return false;
+    }
     fd = nullfd;
     if (fd < 0) {
       fd = open(dev_null, O_WRONLY
@@ -29516,13 +29523,17 @@ bool osal_safe_peek_int32(const void *ptr, int32_t *dest) {
 #endif /* O_CLOEXEC */
       );
       if (unlikely(fd < 0)) {
-        pthread_mutex_unlock(&nullfd_mutex);
+        rc = pthread_mutex_unlock(&nullfd_mutex);
         ERROR("unable open(%s), err %d", dev_null, errno);
+        if (unlikely(rc != 0))
+          ERROR("pthread_mutex_unlock(nullfd_mutex), err %d", rc);
         return false;
       }
       nullfd = fd; /* we sure int write is atomic */
     }
-    pthread_mutex_unlock(&nullfd_mutex);
+    rc = pthread_mutex_unlock(&nullfd_mutex);
+    if (unlikely(rc != 0))
+      ERROR("pthread_mutex_unlock(nullfd_mutex), err %d", rc);
   }
   if (write(fd, ptr, 4) == 4) {
     memcpy(dest, ptr, 4);
@@ -29750,12 +29761,18 @@ int osal_ioring_add(osal_ioring_t *ior, const size_t offset, void *data, const s
   item->ov.OffsetHigh = HIGH_DWORD(offset);
   item->ov.hEvent = 0;
   if (!use_gather || ((bytes | (uintptr_t)(data)) & ior_alignment_mask) != 0 || segments > OSAL_IOV_MAX) {
-    /* WriteFile() */
+    /* WriteFile()
+     * Encoding contract for later decoding in osal_ioring_walk()/osal_ioring_write():
+     *   single.iov_len = payload_bytes + ior_WriteFile_flag.
+     * The low bit marks "single-buffer WriteFile item". */
     item->single.iov_base = data;
     item->single.iov_len = bytes + ior_WriteFile_flag;
     ASSERT((item->single.iov_len & ior_WriteFile_flag) != 0);
   } else {
-    /* WriteFileGather() */
+    /* WriteFileGather()
+     * Deliberately leave single.iov_len == 0 (item is zero-initialized).
+     * Decoders subtract ior_WriteFile_flag from iov_len and test the low bit:
+     *   0 - 1 => SIZE_MAX, low bit set, therefore recognized as gather item. */
     ASSERT(ior->overlapped_fd);
     item->sgv[0].Buffer = PtrToPtr64(data);
     for (size_t i = 1; i < segments; ++i) {
@@ -29789,6 +29806,11 @@ void osal_ioring_walk(osal_ioring_t *ior, iov_ctx_t *ctx,
 #if IS_WINDOWS
     size_t offset = ior_offset(item);
     char *data = item->single.iov_base;
+    /* Decode counterpart of enqueue-time encoding:
+     *   WriteFile item:      iov_len = payload + flag, so bytes = payload.
+     *   WriteFileGather item iov_len = 0, so bytes = (size_t)-1 (intentional underflow).
+     * We use only the low-bit test below to detect gather items, then overwrite bytes
+     * before any callback/use, so the transient SIZE_MAX value is safe. */
     size_t bytes = item->single.iov_len - ior_WriteFile_flag;
     size_t i = 1;
     if (bytes & ior_WriteFile_flag) {
@@ -30133,7 +30155,7 @@ int osal_ioring_resize(osal_ioring_t *ior, size_t items) {
       if (imports.SetFileIoOverlappedRange(ior->overlapped_fd, ptr, (ULONG)bytes))
         ior->state += IOR_STATE_LOCKED;
       else
-        return GetLastError();
+        return (int)GetLastError();
     }
 #endif /* Windows */
   }
@@ -30377,35 +30399,42 @@ int osal_openfile(const enum osal_openfile_purpose purpose, const MDBX_env *env,
   *fd = open(pathname, flags, unix_mode_bits);
 #if defined(O_DIRECT)
   if (*fd < 0 && (flags & O_DIRECT) && (errno == EINVAL || errno == EAFNOSUPPORT)) {
-    flags &= ~(O_DIRECT | O_EXCL);
+    flags &= ~O_DIRECT;
     *fd = open(pathname, flags, unix_mode_bits);
   }
 #endif /* O_DIRECT */
 
-  if (*fd < 0 && errno == EACCES && purpose == MDBX_OPEN_LCK) {
-    struct stat unused;
-    if (stat(pathname, &unused) == 0 || errno != ENOENT)
-      errno = EACCES /* restore errno if file exists */;
+  int err = MDBX_SUCCESS;
+  if (*fd < 0) {
+    err = errno;
+    if (err == EACCES && purpose == MDBX_OPEN_LCK) {
+      struct stat unused;
+      if (stat(pathname, &unused) == 0 || (err = errno) != ENOENT)
+        err = EACCES /* restore errno if file exists */;
+    }
   }
 
   /* Safeguard for https://libmdbx.dqdkfa.ru/dead-github/issues/144 */
 #if STDIN_FILENO == 0 && STDOUT_FILENO == 1 && STDERR_FILENO == 2
-  if (*fd == STDIN_FILENO) {
+  else if (*fd == STDIN_FILENO) {
     WARNING("Got STD%s_FILENO/%d, avoid using it by dup(fd)", "IN", STDIN_FILENO);
     ASSERT(hazardous_fd0 == -1);
     *fd = dup(hazardous_fd0 = STDIN_FILENO);
-  }
-  if (*fd == STDOUT_FILENO) {
+    if (*fd < 0)
+      err = errno;
+  } else if (*fd == STDOUT_FILENO) {
     WARNING("Got STD%s_FILENO/%d, avoid using it by dup(fd)", "OUT", STDOUT_FILENO);
     ASSERT(hazardous_fd1 == -1);
     *fd = dup(hazardous_fd1 = STDOUT_FILENO);
-  }
-  if (*fd == STDERR_FILENO) {
+    if (*fd < 0)
+      err = errno;
+  } else if (*fd == STDERR_FILENO) {
     WARNING("Got STD%s_FILENO/%d, avoid using it by dup(fd)", "ERR", STDERR_FILENO);
     ASSERT(hazardous_fd2 == -1);
     *fd = dup(hazardous_fd2 = STDERR_FILENO);
+    if (*fd < 0)
+      err = errno;
   }
-  const int err = errno;
   if (hazardous_fd0 != -1)
     close(hazardous_fd0);
   if (hazardous_fd1 != -1)
@@ -30423,7 +30452,7 @@ int osal_openfile(const enum osal_openfile_purpose purpose, const MDBX_env *env,
 #error "Unexpected or unsupported UNIX or POSIX system"
 #endif /* STDIN_FILENO == 0 && STDERR_FILENO == 2 */
 
-  if (*fd < 0)
+  if (err != 0)
     return err;
 
 #if defined(FD_CLOEXEC) && !defined(O_CLOEXEC)
@@ -30643,7 +30672,7 @@ int osal_filesize(mdbx_filehandle_t fd, uint64_t *length) {
 #else
   struct stat st;
 
-  STATIC_ASSERT_MSG(sizeof(off_t) <= sizeof(uint64_t), "libmdbx requires 64-bit file I/O on 64-bit systems");
+  STATIC_ASSERT_MSG(sizeof(off_t) <= sizeof(uint64_t), "off_t is expected to be no wider than 64 bits");
   if (fstat(fd, &st))
     return errno;
 
@@ -31431,6 +31460,7 @@ int osal_mresize(const int flags, osal_mmap_t *map, size_t size, size_t limit) {
   status = NtUnmapViewOfSection(GetCurrentProcess(), map->base);
   if (!NT_SUCCESS(status))
     return osal_ntstatus2errcode(status);
+  /* close and zeroed old section handle */
   status = NtClose(map->section);
   map->section = nullptr;
   PVOID ReservedAddress = nullptr;
@@ -31441,6 +31471,10 @@ int osal_mresize(const int flags, osal_mmap_t *map, size_t size, size_t limit) {
     err = osal_ntstatus2errcode(status);
     map->base = nullptr;
     map->current = map->limit = 0;
+    if (map->section) {
+      NtClose(map->section);
+      map->section = nullptr;
+    }
     if (ReservedAddress) {
       ReservedSize = 0;
       status = NtFreeVirtualMemory(GetCurrentProcess(), &ReservedAddress, &ReservedSize, MEM_RELEASE);
@@ -32463,7 +32497,7 @@ __cold int mdbx_get_sysraminfo(intptr_t *page_size, intptr_t *total_pages, intpt
     mach_msg_type_number_t count = HOST_VM_INFO_COUNT;
     vm_statistics_data_t vmstat;
     mach_port_t mport = mach_host_self();
-    kern_return_t kerr = host_statistics(mach_host_self(), HOST_VM_INFO, (host_info_t)&vmstat, &count);
+    kern_return_t kerr = host_statistics(mport, HOST_VM_INFO, (host_info_t)&vmstat, &count);
     mach_port_deallocate(mach_task_self(), mport);
     if (unlikely(kerr != KERN_SUCCESS))
       return LOG_IFERR(MDBX_ENOSYS);
@@ -32594,7 +32628,7 @@ bin128_t osal_guid(const MDBX_env *env) {
 const char *osal_getenv_singlethreaded(const char *name, bool secure) {
   (void)secure;
 #if IS_WINDOWS
-  /* We sure this function never calls in a multithreaded cases, since used used at initialization stage only. */
+  /* We sure this function never calls in a multithreaded cases, since used at initialization stage only. */
   static char buf[42];
   SetLastError(ERROR_OUT_OF_PAPER);
   const size_t len = GetEnvironmentVariableA(name, buf, sizeof(buf));
@@ -42226,10 +42260,10 @@ __dll_export
         0,
         14,
         2,
-        302,
+        308,
         "", /* pre-release suffix of SemVer
-                                        0.14.2.302 */
-        {"2026-07-15T01:38:18+03:00", "be00a9778c8dca21b14cb979a25c25b98d2ccf32", "904f30d76dcb4b63f4cb30c0a767715d41ab4e13", "v0.14.2-302-g904f30d7"},
+                                        0.14.2.308 */
+        {"2026-07-15T11:46:31+03:00", "09d78eb8161b84eaf5f6028ba7be995fcf754757", "0f3801d44015ca8d561d26aab00a08df5680a884", "v0.14.2-308-g0f3801d4"},
         sourcery};
 
 __dll_export

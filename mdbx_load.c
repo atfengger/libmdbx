@@ -1,4 +1,4 @@
-/* This file is part of the libmdbx amalgamated source code (v0.14.2-302-g904f30d7 at 2026-07-15T01:38:18+03:00).
+/* This file is part of the libmdbx amalgamated source code (v0.14.2-308-g0f3801d4 at 2026-07-15T11:46:31+03:00).
  *
  * libmdbx (aka MDBX) is an extremely fast, compact, powerful, embeddedable, transactional key-value storage engine with
  * open-source code. MDBX has a specific set of properties and capabilities, focused on creating unique lightweight
@@ -73,8 +73,8 @@ static void logger(MDBX_log_level_t level, const char *function, int line, const
       "   ",        // 3 notice
       "   //",      // 4 verbose
   };
-  if (level < MDBX_LOG_DEBUG) {
-    if (function && line)
+  if (level >= 0 && level < MDBX_LOG_DEBUG) {
+    if (function && line && (size_t)level < ARRAY_LENGTH(prefixes))
       fprintf(stderr, "%s", prefixes[level]);
     vfprintf(stderr, fmt, args);
   }
@@ -722,7 +722,7 @@ int main(int argc, char *argv[]) {
   key_buf.iov_len = mdbx_env_get_maxkeysize_ex(env, 0) + (size_t)1;
   if (key_buf.iov_len >= INTPTR_MAX / 2) {
     if (!quiet)
-      fprintf(stderr, "mdbx_env_get_maxvalsize_ex() failed, returns %zu\n", key_buf.iov_len);
+      fprintf(stderr, "mdbx_env_get_maxkeysize_ex() failed, returns %zu\n", key_buf.iov_len);
     goto bailout;
   }
 

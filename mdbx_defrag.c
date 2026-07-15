@@ -1,4 +1,4 @@
-/* This file is part of the libmdbx amalgamated source code (v0.14.2-302-g904f30d7 at 2026-07-15T01:38:18+03:00).
+/* This file is part of the libmdbx amalgamated source code (v0.14.2-308-g0f3801d4 at 2026-07-15T11:46:31+03:00).
  *
  * libmdbx (aka MDBX) is an extremely fast, compact, powerful, embeddedable, transactional key-value storage engine with
  * open-source code. MDBX has a specific set of properties and capabilities, focused on creating unique lightweight
@@ -98,7 +98,7 @@ static void logger(MDBX_log_level_t level, const char *function, int line, const
         fflush(nullptr);
     }
     FILE *out = (level < MDBX_LOG_NOTICE) ? stderr : stdout;
-    if (function && line)
+    if (function && line && (size_t)level < ARRAY_LENGTH(prefixes))
       fprintf(out, "%s", prefixes[level]);
     vfprintf(out, fmt, args);
     if (level <= MDBX_LOG_NOTICE)
@@ -123,7 +123,7 @@ static void defrag_report_progress(const MDBX_defrag_result_t *progress, unsigne
       if (progress->pages_retained)
         printf(", retained %zi", progress->pages_retained);
       if (progress->pages_shrinked)
-        printf(", shrinked %zi", progress->pages_shrinked);
+        printf(", shrink %zi", progress->pages_shrinked);
       printf(", left %zi", progress->pages_left);
     }
     for (unsigned i = 0; i < 3 || (i < dots / 8 && i < 64); ++i)
@@ -412,7 +412,7 @@ int main(int argc, char *argv[]) {
 
     if (!MDBX_IS_ERROR(rc)) {
       if (!quiet) {
-        printf("Defragmentation%s: shrinked %zi pages, %u passes, moved %zu pages",
+        printf("Defragmentation%s: shrink %zi pages, %u passes, moved %zu pages",
                (rc == MDBX_SUCCESS) ? " done" : " incomplete", result.pages_shrinked, result.cycles,
                result.pages_moved);
         if (result.stopping_reasons)

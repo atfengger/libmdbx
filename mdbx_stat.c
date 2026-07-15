@@ -1,4 +1,4 @@
-/* This file is part of the libmdbx amalgamated source code (v0.14.2-302-g904f30d7 at 2026-07-15T01:38:18+03:00).
+/* This file is part of the libmdbx amalgamated source code (v0.14.2-308-g0f3801d4 at 2026-07-15T11:46:31+03:00).
  *
  * libmdbx (aka MDBX) is an extremely fast, compact, powerful, embeddedable, transactional key-value storage engine with
  * open-source code. MDBX has a specific set of properties and capabilities, focused on creating unique lightweight
@@ -143,8 +143,8 @@ static void logger(MDBX_log_level_t level, const char *function, int line, const
       "   ",        // 3 notice
       "   //",      // 4 verbose
   };
-  if (level < MDBX_LOG_DEBUG) {
-    if (function && line)
+  if (level >= 0 && level < MDBX_LOG_DEBUG) {
+    if (function && line && (size_t)level < ARRAY_LENGTH(prefixes))
       fprintf(stderr, "%s", prefixes[level]);
     vfprintf(stderr, fmt, args);
   }
@@ -281,7 +281,7 @@ int main(int argc, char *argv[]) {
   rc = mdbx_txn_begin(env, nullptr, MDBX_TXN_RDONLY, &txn);
   if (unlikely(rc != MDBX_SUCCESS)) {
     error("mdbx_txn_begin", rc);
-    goto txn_abort;
+    goto env_close;
   }
 
   if (show_env_info || show_gc || show_page_ops) {
@@ -457,7 +457,6 @@ int main(int argc, char *argv[]) {
     rc = mdbx_enumerate_tables(txn, table_enum_func, nullptr);
     switch (rc) {
     case MDBX_SUCCESS:
-    case MDBX_NOTFOUND:
       break;
     case MDBX_EINTR:
       if (!quiet)
