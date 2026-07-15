@@ -105,6 +105,8 @@ The supporting release of a stable branch with bug fixes.
 
  - Fixed Windows section handle leak inside `osal_mresize()` in unsuccessful case.
 
+ - Fixed `mdbx_defrag` for `-f` option handling.
+
 --------------------------------------------------------------------------------
 
 ## v0.14.2 "Буревестник" (stormy petrel, aka Bourevestnik) at 2026-05-14

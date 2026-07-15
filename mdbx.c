@@ -1,4 +1,4 @@
-/* This file is part of the libmdbx amalgamated source code (v0.14.2-308-g0f3801d4 at 2026-07-15T11:46:31+03:00).
+/* This file is part of the libmdbx amalgamated source code (v0.14.2-310-g2389b5a5 at 2026-07-15T12:48:43+03:00).
  *
  * libmdbx (aka MDBX) is an extremely fast, compact, powerful, embeddedable, transactional key-value storage engine with
  * open-source code. MDBX has a specific set of properties and capabilities, focused on creating unique lightweight
@@ -29427,7 +29427,7 @@ _Function_class_(EXCEPTION_ROUTINE)
     NT_TIB *const TIB = (NT_TIB *)NtCurrentTeb();
     seh_ctx_t *seh = (seh_ctx_t *)TIB->ExceptionList;
 #ifndef EXCEPTION_CHAIN_END
-#define EXCEPTION_CHAIN_END ((PEXCEPTION_REGISTRATION_RECORD)-1)
+#define EXCEPTION_CHAIN_END ((PEXCEPTION_REGISTRATION_RECORD) - 1)
 #endif
     while (seh && seh != (seh_ctx_t *)EXCEPTION_CHAIN_END) {
       if (seh->Registration.Handler == mdbx_simple_SEH &&
@@ -42260,10 +42260,10 @@ __dll_export
         0,
         14,
         2,
-        308,
+        310,
         "", /* pre-release suffix of SemVer
-                                        0.14.2.308 */
-        {"2026-07-15T11:46:31+03:00", "09d78eb8161b84eaf5f6028ba7be995fcf754757", "0f3801d44015ca8d561d26aab00a08df5680a884", "v0.14.2-308-g0f3801d4"},
+                                        0.14.2.310 */
+        {"2026-07-15T12:48:43+03:00", "5b8f35128d1adedd14deaf3bf8b40878eb719449", "2389b5a554cc4382612d3bc125985d0def034965", "v0.14.2-310-g2389b5a5"},
         sourcery};
 
 __dll_export
