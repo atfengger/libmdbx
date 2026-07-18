@@ -1,4 +1,4 @@
-/* This file is part of the libmdbx amalgamated source code (v0.14.2-316-g33ad000c at 2026-07-17T12:38:29+03:00).
+/* This file is part of the libmdbx amalgamated source code (v0.14.2-321-gfa8aef44 at 2026-07-18T04:21:04+03:00).
  *
  * libmdbx (aka MDBX) is an extremely fast, compact, powerful, embeddedable, transactional key-value storage engine with
  * open-source code. MDBX has a specific set of properties and capabilities, focused on creating unique lightweight
@@ -158,7 +158,7 @@ static FILE *prefix(enum MDBX_chk_severity severity) {
 }
 
 static void suffix(size_t cookie, const char *str) {
-  if (cookie == line_count && !line_struct.empty) {
+  if (cookie == line_count && !line_struct.empty && line_output) {
     fprintf(line_output, " %s", str);
     line_struct.empty = false;
     lf();
@@ -202,7 +202,8 @@ static void logger(MDBX_log_level_t level, const char *function, int line, const
   FILE *out = prefix(severity);
   if (out) {
     vfprintf(out, fmt, args);
-    const bool have_lf = fmt[strlen(fmt) - 1] == '\n';
+    const size_t fmt_len = strlen(fmt);
+    const bool have_lf = (fmt_len > 0 && fmt[fmt_len - 1] == '\n');
     if (level == MDBX_LOG_FATAL && function && line) {
       if (have_lf)
         for (size_t i = 0; i < line_struct.scope_depth; ++i)
